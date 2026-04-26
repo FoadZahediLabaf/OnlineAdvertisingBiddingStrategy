@@ -1,0 +1,37 @@
+# Configuration file for Requirement 1.
+#
+# Owner:
+#   Foad
+#
+# Purpose:
+#   Store parameters for single-campaign experiments.
+#
+# Do not:
+#   - Add multi-campaign parameters here.
+#   - Add Req 2, Req 3, or Req 4 logic here.
+#   - Change parameter names without updating experiments/run_req1.py.
+
+experiment:
+  name: req1_single_campaign
+  random_seed: 42
+  horizon: 1000
+
+campaign:
+  value: 1.0
+  initial_budget: 300.0
+
+bids:
+  # Small discrete bid set for first-price auctions.
+  values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+environment:
+  # Placeholder distribution parameters for the highest competing bid.
+  # Foad should replace or extend this when implementing Req 1.
+  competing_bid_distribution: uniform
+  min_competing_bid: 0.0
+  max_competing_bid: 1.0
+
+outputs:
+  results_dir: results
+  ucb1_results_file: results/req1_ucb1.csv
+  budgeted_ucb_results_file: results/req1_budgeted_ucb.csv
