@@ -125,6 +125,10 @@ Do not change files just because they look wrong or unclear.
 
 If you think a file needs to be changed but it is not part of your task, ask the group first.
 
+Before editing any file, check the "Allowed Files by Owner" table in `README.md`.
+
+If the file is not assigned to you, ask the owner before editing it.
+
 Before making changes, check the current status:
 
     git status
@@ -250,7 +254,9 @@ Do not commit random files.
 
 Do not commit broken code.
 
-Do not commit result files unless they are needed for the project comparison.
+Do not commit temporary result files.
+
+Commit only final or comparison result files that the group needs for plots and presentation.
 
 ---
 

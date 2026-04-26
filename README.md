@@ -150,13 +150,12 @@ Do not create files like:
 Use the existing structure instead.
 
 ---
+
 ## Installation and Environment Setup
 
 Each person must set up their own Python environment before running the project.
 
 This avoids problems caused by different Python versions or missing libraries.
-
----
 
 ### 1. Clone the Repository
 
@@ -172,8 +171,6 @@ Replace `<repository-url>` with the actual GitHub repository link.
 
 Replace `<repository-folder>` with the folder created after cloning.
 
----
-
 ### 2. Create a Virtual Environment
 
 On macOS or Linux:
@@ -185,8 +182,6 @@ On Windows:
     python -m venv .venv
 
 This creates a local environment called `.venv`.
-
----
 
 ### 3. Activate the Virtual Environment
 
@@ -208,15 +203,11 @@ After activation, the terminal should show something like this:
 
 This means the virtual environment is active.
 
----
-
 ### 4. Install Requirements
 
 After activating the virtual environment, install the required libraries:
 
     pip install -r requirements.txt
-
----
 
 ### 5. Updating Requirements
 
@@ -294,6 +285,7 @@ Example:
     configs/req1.yaml
 
 ---
+
 ## Output and Results Format
 
 Every experiment must save a CSV file with the same column names.
@@ -388,6 +380,7 @@ Rules:
 - Final plots must be generated from saved CSV files.
 
 ---
+
 ## Plotting and Reporting Rules
 
 Plots must be generated from saved CSV files.
@@ -431,6 +424,51 @@ Only merge into `main` when:
 For the full Git workflow, read:
 
     CONTRIBUTING.md
+
+---
+
+## File Ownership and Access Rules
+
+Each person should work only on the files assigned to their task.
+
+Do not edit files outside your assigned area unless the owner agrees first.
+
+Do not delete, rename, move, or create files without group approval.
+
+If a file is listed in the table below and does not exist yet, the assigned owner is allowed to create it.
+
+For any other new file, ask the group before creating it.
+
+Use the file names below unless the group agrees on a different name.
+
+---
+
+## Allowed Files by Owner
+
+| Owner | Files / folders they can edit |
+|---|---|
+| Foad | `README.md`, `CONTRIBUTING.md`, `.gitignore`, `requirements.txt`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/utils/bidding.py`, `ola/utils/logging.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `results/req1_*.csv`, `results/req4_3way_comparison*.csv` |
+| Luigi | `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `ola/utils/graph.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `results/req2_*.csv` |
+| Luigi + Simone | `ola/environments/adversarial_multi_campaign.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/req3_*.csv` |
+| Mengyao + Simone | `ola/environments/non_stationary_multi_campaign.py`, `ola/algorithms/sliding_window_cucb.py`, `ola/algorithms/change_detector_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/req4_*.csv` |
+| Simone + Team | Final slides only, presentation notes, and shared final-report material. Do not edit code files for this unless the file owner agrees. |
+
+Note: `ola/utils/graph.py` is mainly used by Requirement 2, but changes must be communicated because Requirement 3 and Requirement 4 may also use it.
+
+---
+
+## Shared Files That Need Permission
+
+Some shared files have an owner, but changes must still be communicated because they can affect other requirements.
+
+These files affect everyone. Do not edit them without telling the group first:
+
+    requirements.txt
+    .gitignore
+    ola/environments/base.py
+    ola/utils/bidding.py
+    ola/utils/logging.py
+    ola/utils/graph.py
 
 ---
 
