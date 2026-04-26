@@ -159,7 +159,7 @@ Do not change CSV column names.
 
 Do not overwrite other people’s work.
 
-If you need a new file, ask the group first.
+If you need a new file that is not listed in the "Allowed Files by Owner" table in `README.md`, ask the group first.
 
 ---
 
