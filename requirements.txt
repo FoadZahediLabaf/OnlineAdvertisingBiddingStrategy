@@ -1,0 +1,24 @@
+
+
+# Core numerical computing
+numpy
+scipy
+pandas
+
+# Plotting and visualization
+matplotlib
+
+# Graph utilities for campaign conflict constraints
+networkx
+
+# Configuration files
+pyyaml
+
+# Progress bars for long experiments
+tqdm
+
+# Linear / convex optimization for budgeted and primal-dual methods
+cvxpy
+
+# Testing
+pytest

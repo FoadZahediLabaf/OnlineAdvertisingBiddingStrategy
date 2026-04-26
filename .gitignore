@@ -1,0 +1,49 @@
+
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter / notebook checkpoints
+.ipynb_checkpoints/
+
+# Pytest / coverage cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Local environment variables
+.env
+.env.local
+
+# Generated logs
+*.log
+
+# Python packaging/build artifacts
+build/
+dist/
+*.egg-info/
+
+# Do not ignore source code, configs, results, or plots by default.
+# Final CSV results and plots may be needed for the project presentation.
