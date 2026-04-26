@@ -71,18 +71,31 @@ The repository must stay clean and organized.
     ├── ola/
     │   ├── environments/
     │   │   ├── base.py
-    │   │   └── single_campaign.py
+    │   │   ├── single_campaign.py
+    │   │   ├── multi_campaign.py
+    │   │   ├── adversarial.py
+    │   │   └── non_stationary.py
     │   ├── algorithms/
     │   │   ├── ucb1.py
-    │   │   └── budgeted_ucb.py
+    │   │   ├── budgeted_ucb.py
+    │   │   ├── combinatorial_ucb.py
+    │   │   ├── primal_dual.py
+    │   │   ├── sliding_window_cucb.py
+    │   │   └── change_detector_cucb.py
     │   └── utils/
     │       ├── bidding.py
     │       ├── logging.py
     │       └── graph.py
     ├── experiments/
-    │   └── run_req1.py
+    │   ├── run_req1.py
+    │   ├── run_req2.py
+    │   ├── run_req3.py
+    │   └── run_req4.py
     └── configs/
-        └── req1.yaml
+        ├── req1.yaml
+        ├── req2.yaml
+        ├── req3.yaml
+        └── req4.yaml
 
 ---
 
@@ -371,6 +384,7 @@ Recommended file names:
     results/req3_primal_dual.csv
     results/req4_sliding_window.csv
     results/req4_change_detector.csv
+    results/req4_3way_comparison.csv
 
 Rules:
 
@@ -449,8 +463,8 @@ Use the file names below unless the group agrees on a different name.
 |---|---|
 | Foad | `README.md`, `CONTRIBUTING.md`, `.gitignore`, `requirements.txt`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/utils/bidding.py`, `ola/utils/logging.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `results/req1_*.csv`, `results/req4_3way_comparison*.csv` |
 | Luigi | `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `ola/utils/graph.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `results/req2_*.csv` |
-| Luigi + Simone | `ola/environments/adversarial_multi_campaign.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/req3_*.csv` |
-| Mengyao + Simone | `ola/environments/non_stationary_multi_campaign.py`, `ola/algorithms/sliding_window_cucb.py`, `ola/algorithms/change_detector_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/req4_*.csv` |
+| Luigi + Simone | `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/req3_*.csv` |
+| Mengyao + Simone | `ola/environments/non_stationary.py`, `ola/algorithms/sliding_window_cucb.py`, `ola/algorithms/change_detector_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/req4_*.csv` |
 | Simone + Team | Final slides only, presentation notes, and shared final-report material. Do not edit code files for this unless the file owner agrees. |
 
 Note: `ola/utils/graph.py` is mainly used by Requirement 2, but changes must be communicated because Requirement 3 and Requirement 4 may also use it.

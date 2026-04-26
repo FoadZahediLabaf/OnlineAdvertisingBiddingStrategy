@@ -1,0 +1,46 @@
+
+
+# Configuration file for Requirement 3.
+#
+# Owner:
+#   Luigi + Simone
+#
+# Purpose:
+#   Store parameters for best-of-both-worlds primal-dual experiments.
+#
+# Do not:
+#   - Add Req 1 single-campaign-only parameters here.
+#   - Add Req 2 stochastic-only parameters here.
+#   - Add Req 4 sliding-window or change-detector parameters here.
+#   - Change parameter names without updating experiments/run_req3.py.
+
+experiment:
+  name: req3_best_of_both_worlds
+  random_seed: 42
+  horizon: 1000
+
+campaigns:
+  number_of_campaigns: 3
+  values: [1.0, 1.0, 1.0]
+  initial_budget: 500.0
+
+bids:
+  # Shared discrete bid set used for each campaign.
+  values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+feedback:
+  # Requirement 3 can assume full feedback.
+  type: full_feedback
+
+environment:
+  # Placeholder for a highly non-stationary or adversarial sequence.
+  # Luigi + Simone should replace or extend this when implementing Req 3.
+  sequence_type: adversarial_placeholder
+
+algorithm:
+  learning_rate: null
+  dual_learning_rate: null
+
+outputs:
+  results_dir: results
+  primal_dual_results_file: results/req3_primal_dual.csv
