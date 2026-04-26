@@ -1,0 +1,55 @@
+# Configuration file for Requirement 4.
+#
+# Owner:
+#   Mengyao + Simone
+#
+# Purpose:
+#   Store parameters for slightly non-stationary multi-campaign experiments.
+#
+# Do not:
+#   - Add Req 1 single-campaign-only parameters here.
+#   - Add Req 2 stationary-only parameters here.
+#   - Add Req 3 adversarial-only parameters here.
+#   - Change parameter names without updating experiments/run_req4.py.
+
+experiment:
+  name: req4_slightly_non_stationary
+  random_seed: 42
+  horizon: 1000
+
+campaigns:
+  number_of_campaigns: 3
+  values: [1.0, 1.0, 1.0]
+  initial_budget: 500.0
+
+bids:
+  # Shared discrete bid set used for each campaign.
+  values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+conflict_graph:
+  # Each pair means the two campaigns cannot be selected together.
+  edges: []
+
+environment:
+  # Rounds are partitioned into intervals.
+  # Each interval can have a different stochastic distribution.
+  number_of_intervals: 4
+  distribution_type: piecewise_stationary_placeholder
+  min_competing_bid: 0.0
+  max_competing_bid: 1.0
+
+sliding_window_cucb:
+  window_size: null
+
+change_detector_cucb:
+  detection_threshold: null
+  minimum_samples: null
+
+comparison:
+  include_primal_dual: true
+
+outputs:
+  results_dir: results
+  sliding_window_results_file: results/req4_sliding_window.csv
+  change_detector_results_file: results/req4_change_detector.csv
+  three_way_comparison_file: results/req4_3way_comparison.csv
