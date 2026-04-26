@@ -13,20 +13,48 @@ Do not:
     - Add experiment-running code here.
 """
 
-from typing import Any
-
-
+from typing import Any, Sequence
+import numpy as np
 class UCB1:
-    """Standard UCB1 learner skeleton for a finite action set."""
+    """Standard UCB1 learner for a finite action set.
 
-    def __init__(self) -> None:
-        # TODO(Foad): initialize arms, counts, empirical means, and horizon if needed.
-        pass
+    In Requirement 1, each action is one possible bid.
+    This learner ignores the budget constraint.
+    """
+
+    def __init__(self, actions: Sequence[float], horizon: int) -> None:
+        if len(actions) == 0:
+            raise ValueError("Action set must be non-empty.")
+        if horizon <= 0:
+            raise ValueError("Horizon must be positive.")
+        
+        self.actions = np.array(actions, dtype=float)
+        self.horizon = int(horizon)
+        self.n_actions = len(self.actions)
+        self.counts = np.zeros(self.n_actions, dtype=int)
+        self.total_rewards = np.zeros(self.n_actions, dtype=float)
+        self.t = 0
+
 
     def select_action(self) -> Any:
-        # TODO(Foad): select the bid/action with the highest upper confidence bound.
-        pass
-
+        """Select an action using the UCB1 algorithm rule."""
+        for index in range(self.n_actions):
+            if self.counts[index] == 0:
+                return float(self.actions[index])
+        empirical_means = self.total_rewards / self.counts
+        confidence_widths = np.sqrt(2 * np.log(self.horizon) / self.counts)
+        upper_confidence_values = empirical_means + confidence_widths
+        best_index = int(np.argmax(upper_confidence_values))
+        return float(self.actions[best_index])     
+        
     def update(self, action: Any, reward: float) -> None:
-        # TODO(Foad): update counts and empirical reward estimate for the selected action.
-        pass
+        """Update the learner after observing the reward of selected action."""
+        action_value = float(action)
+        matching_indices = np.where(np.isclose(self.actions, action_value))[0]
+        if len(matching_indices) == 0:
+            raise ValueError(f"Unknown action: {action}")
+
+        index = int(matching_indices[0])
+        self.counts[index] += 1
+        self.total_rewards[index] += float(reward)
+        self.t += 1
