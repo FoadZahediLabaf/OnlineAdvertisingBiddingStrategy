@@ -109,7 +109,7 @@ The repository must stay clean and organized.
 - Do not change the repository structure without group approval.
 - Do not edit files unrelated to your task.
 - Do not overwrite other people’s work.
-- Do not change the CSV result format.
+- Do not change the CSV result format after the interface freeze without group approval.
 - Do not change CSV column names.
 - Ask the group before making structural changes.
 
@@ -301,23 +301,31 @@ Example:
 
 ## Output and Results Format
 
-Every experiment must save a CSV file with the same column names.
+Every experiment must save a CSV file with the same required column names.
 
-Use this exact order:
+Use this exact required order:
 
-    round,action,bids,wins,reward,cost,budget_left,cumulative_reward,cumulative_cost,benchmark_reward,instant_regret,cumulative_regret
+    algorithm,round,action,bids,wins,reward,cost,budget_left,cumulative_reward,cumulative_cost,benchmark_reward,instant_regret,cumulative_regret
 
-Do not change these column names.
+Do not rename, remove, or reorder the required columns.
 
-Do not remove columns.
+Extra columns are allowed only after the required columns.
 
-Do not rename columns.
+Do not change the CSV result format after the interface freeze without group approval.
 
-Do not change the meaning of columns.
-
-This format is important because all algorithms must be compared in the final presentation.
+The official result format is defined consistently in `README.md`, `CONTRIBUTING.md`, and `ola/utils/logging.py`.
 
 If everyone uses the same format, we can generate comparison plots easily.
+
+Allowed extra columns include:
+
+    seed
+    environment_name
+    config_name
+    highest_competing_bid
+    done
+
+Extra columns must come after the required columns.
 
 ---
 
@@ -325,6 +333,7 @@ If everyone uses the same format, we can generate comparison plots easily.
 
 | Column | Meaning |
 |---|---|
+| `algorithm` | Name of the algorithm that produced the row |
 | `round` | Current round number |
 | `action` | Selected action or selected arm |
 | `bids` | Bid or vector of bids |
@@ -340,25 +349,35 @@ If everyone uses the same format, we can generate comparison plots easily.
 
 ---
 
-## Bids Format
+## Action, Bids, and Wins Format
 
-For Requirement 1, `bids` can be a single number.
+For Requirement 1:
 
-Example:
-
-    0.4
-
-For Requirements 2, 3, and 4, `bids` should contain one bid per campaign.
+- `action` is the selected bid.
+- `bids` is the selected bid as a scalar.
+- `wins` is `0` or `1`.
 
 Example:
 
-    [0.1, 0.4, 0.2]
+    action,bids,wins
+    0.4,0.4,1
+
+For Requirements 2, 3, and 4:
+
+- `action` may identify the selected feasible combination or policy.
+- `bids` should contain one bid per campaign.
+- `wins` should contain one win indicator per campaign.
+
+Example:
+
+    action,bids,wins
+    feasible_set_0,"[0.1, 0.4, 0.2]","[1, 0, 1]"
 
 ---
 
 ## Missing Benchmark Values
 
-If a benchmark is not available yet, keep the benchmark columns but leave the values empty.
+If benchmark or regret is not implemented yet, keep `benchmark_reward`, `instant_regret`, and `cumulative_regret` as empty values.
 
 These columns must still exist:
 
@@ -372,19 +391,45 @@ Do not delete them.
 
 ## Results Folder
 
-Save experiment outputs inside:
+Raw experiment CSV files go in:
 
-    results/
+    results/raw/
 
-Recommended file names:
+Processed or aggregated result files go in:
 
-    results/req1_ucb1.csv
-    results/req1_budgeted_ucb.csv
-    results/req2_combinatorial_ucb.csv
-    results/req3_primal_dual.csv
-    results/req4_sliding_window.csv
-    results/req4_change_detector.csv
-    results/req4_3way_comparison.csv
+    results/processed/
+
+Generated plots go in:
+
+    results/plots/
+
+Final slide-ready figures go in:
+
+    slides/figures/
+
+Raw CSV file naming convention:
+
+    results/raw/req<requirement_number>_<algorithm_name>.csv
+
+Examples:
+
+    results/raw/req1_ucb1.csv
+    results/raw/req1_budgeted_ucb.csv
+    results/raw/req2_combinatorial_ucb.csv
+    results/raw/req3_primal_dual.csv
+    results/raw/req4_sw_cucb.csv
+    results/raw/req4_cd_cucb.csv
+
+Plot naming convention:
+
+    results/plots/req<requirement_number>_<metric>.png
+
+Examples:
+
+    results/plots/req1_cumulative_reward.png
+    results/plots/req1_budget_left.png
+    results/plots/req1_cumulative_cost.png
+    results/plots/req1_selected_bid.png
 
 Rules:
 
@@ -461,10 +506,10 @@ Use the file names below unless the group agrees on a different name.
 
 | Owner | Files / folders they can edit |
 |---|---|
-| Foad | `README.md`, `CONTRIBUTING.md`, `.gitignore`, `requirements.txt`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/utils/bidding.py`, `ola/utils/logging.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `results/req1_*.csv`, `results/req4_3way_comparison*.csv` |
-| Luigi | `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `ola/utils/graph.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `results/req2_*.csv` |
-| Luigi + Simone | `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/req3_*.csv` |
-| Mengyao + Simone | `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/req4_*.csv` |
+| Foad | `README.md`, `CONTRIBUTING.md`, `.gitignore`, `requirements.txt`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/utils/bidding.py`, `ola/utils/logging.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `results/raw/req1_*.csv`, `results/processed/req4_3way_comparison*.csv` |
+| Luigi | `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `ola/utils/graph.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `results/raw/req2_*.csv` |
+| Luigi + Simone | `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/raw/req3_*.csv` |
+| Mengyao + Simone | `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/raw/req4_*.csv` |
 | Simone + Team | Final slides only, presentation notes, and shared final-report material. Do not edit code files for this unless the file owner agrees. |
 
 Note: `ola/utils/graph.py` is mainly used by Requirement 2, but changes must be communicated because Requirement 3 and Requirement 4 may also use it.
