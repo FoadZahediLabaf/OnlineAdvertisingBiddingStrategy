@@ -8,7 +8,7 @@ Purpose:
     Keep the CSV result format consistent across all requirements.
 
 Do not:
-    - Change REQUIRED_RESULT_COLUMNS without group approval.
+    - Change REQUIRED_RESULT_COLUMNS after the interface freeze without group approval.
     - Remove required CSV columns.
     - Change the meaning of existing columns.
     - Add experiment-specific logic here.
@@ -20,6 +20,7 @@ import pandas as pd
 
 
 REQUIRED_RESULT_COLUMNS: List[str] = [
+    "algorithm",
     "round",
     "action",
     "bids",
@@ -41,7 +42,14 @@ def empty_result_row() -> Dict[str, object]:
 
 
 def save_results(rows: List[Dict[str, object]], output_path: str) -> None:
-    """Save experiment rows using the standard CSV column order."""
+    """Save experiment rows using the standard CSV column order.
+
+    Required columns are written first. Any extra columns present in the rows are
+    preserved after the required columns.
+    """
     dataframe = pd.DataFrame(rows)
-    dataframe = dataframe.reindex(columns=REQUIRED_RESULT_COLUMNS)
+    extra_columns = [
+        column for column in dataframe.columns if column not in REQUIRED_RESULT_COLUMNS
+    ]
+    dataframe = dataframe.reindex(columns=REQUIRED_RESULT_COLUMNS + extra_columns)
     dataframe.to_csv(output_path, index=False)

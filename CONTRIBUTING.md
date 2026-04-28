@@ -21,7 +21,7 @@ Everyone must follow the same Git workflow so that we do not lose code, overwrit
 - Do not move files.
 - Do not create random files.
 - Do not change the repository structure without group approval.
-- Do not change the CSV result format.
+- Do not change the CSV result format after the interface freeze without group approval.
 - Do not change CSV column names.
 - Do not overwrite other people’s work.
 - Ask the group if you are unsure.
@@ -153,7 +153,7 @@ Do not change the folder structure.
 
 Do not change files unrelated to your task.
 
-Do not change the CSV result format.
+Do not change the CSV result format after the interface freeze without group approval.
 
 Do not change CSV column names.
 
@@ -222,21 +222,112 @@ Better comment:
 
 ## Result Format Rules
 
-Every experiment must save results using the standard CSV format defined in `README.md`.
+Every experiment must save results using the standard CSV format defined in `README.md` and `ola/utils/logging.py`.
 
-Do not change the column names.
+Do not rename columns.
 
 Do not remove columns.
 
 Do not change the meaning of columns.
 
+Do not reorder the required columns.
+
+Do not change the CSV result format after the interface freeze without group approval.
+
+The official result format is defined consistently in `README.md`, `CONTRIBUTING.md`, and `ola/utils/logging.py`.
+
 The required columns are:
 
-    round,action,bids,wins,reward,cost,budget_left,cumulative_reward,cumulative_cost,benchmark_reward,instant_regret,cumulative_regret
+    algorithm,round,action,bids,wins,reward,cost,budget_left,cumulative_reward,cumulative_cost,benchmark_reward,instant_regret,cumulative_regret
 
-If your requirement does not have a benchmark yet, keep the benchmark columns empty.
+The required columns must appear first and in this exact order.
+
+Extra columns are allowed only after the required columns.
+
+Allowed extra columns include:
+
+    seed
+    environment_name
+    config_name
+    highest_competing_bid
+    done
+
+Extra columns must come after the required columns.
+
+### Action, Bids, and Wins Format
+
+For Requirement 1:
+
+- `action` is the selected bid.
+- `bids` is the selected bid as a scalar.
+- `wins` is `0` or `1`.
+
+For Requirements 2, 3, and 4:
+
+- `action` may identify the selected feasible combination or policy.
+- `bids` should contain one bid per campaign.
+- `wins` should contain one win indicator per campaign.
+
+### Missing Benchmark Values
+
+If benchmark or regret is not implemented yet, keep `benchmark_reward`, `instant_regret`, and `cumulative_regret` as empty values.
+
+These columns must still exist:
+
+    benchmark_reward
+    instant_regret
+    cumulative_regret
 
 Do not delete them.
+
+## Results Folder Rules
+
+Raw experiment CSV files go in:
+
+    results/raw/
+
+Processed or aggregated result files go in:
+
+    results/processed/
+
+Generated plots go in:
+
+    results/plots/
+
+Final slide-ready figures go in:
+
+    slides/figures/
+
+Raw CSV file naming convention:
+
+    results/raw/req<requirement_number>_<algorithm_name>.csv
+
+Examples:
+
+    results/raw/req1_ucb1.csv
+    results/raw/req1_budgeted_ucb.csv
+    results/raw/req2_combinatorial_ucb.csv
+    results/raw/req3_primal_dual.csv
+    results/raw/req4_sw_cucb.csv
+    results/raw/req4_cd_cucb.csv
+
+Plot naming convention:
+
+    results/plots/req<requirement_number>_<metric>.png
+
+Examples:
+
+    results/plots/req1_cumulative_reward.png
+    results/plots/req1_budget_left.png
+    results/plots/req1_cumulative_cost.png
+    results/plots/req1_selected_bid.png
+
+Rules:
+
+- Do not overwrite another person’s result file without asking.
+- Do not save final results only as screenshots.
+- Do not change result file names randomly.
+- Final plots must be generated from saved CSV files.
 
 ---
 
@@ -346,7 +437,7 @@ Do not merge code that changes unrelated files.
 
 Do not merge code that changes the repository structure without approval.
 
-Do not merge code that changes the CSV result format.
+Do not merge code that changes the CSV result format after the interface freeze without group approval.
 
 Only merge when:
 
