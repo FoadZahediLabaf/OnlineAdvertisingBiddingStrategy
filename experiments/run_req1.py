@@ -27,7 +27,7 @@ from ola.algorithms.budgeted_ucb import BudgetedUCB
 from ola.algorithms.ucb1 import UCB1
 from ola.environments.single_campaign import SingleCampaignEnvironment
 
-RESULTS_DIR = PROJECT_ROOT / "results"
+RESULTS_DIR = PROJECT_ROOT / "results" / "raw"
 
 def run_algorithm(
         algorithm_name: str,
@@ -69,6 +69,9 @@ def run_algorithm(
             "budget_left": outcome["budget_left"],
             "cumulative_reward": cumulative_reward,
             "cumulative_cost": cumulative_cost,
+            "benchmark_reward": None,
+            "instant_regret": None,
+            "cumulative_regret": None,
             "highest_competing_bid": outcome["info"]["highest_competing_bid"],
             "done": outcome["done"],
         }
@@ -97,12 +100,12 @@ def main() -> None:
     bids = np.linspace(0.0, 1.0, 11)
 
     ucb1= UCB1(actions=bids, horizon=horizon)
-    ucb1_rows = run_algorithm(algorithm_name="ucb1", learner=ucb1, value = value, initial_budget=initial_budget, horizon=horizon, random_seed=random_seed)
+    ucb1_rows = run_algorithm(algorithm_name="ucb1", learner=ucb1, value=value, initial_budget=initial_budget, horizon=horizon, random_seed=random_seed)
     save_results(ucb1_rows, "req1_ucb1.csv")
 
     budget_ucb = BudgetedUCB(actions=bids, horizon=horizon, initial_budget=initial_budget)
-    budget_rows = run_algorithm(algorithm_name="budget_ucb", learner=budget_ucb, value = value, initial_budget=initial_budget, horizon=horizon, random_seed=random_seed)
-    save_results(budget_rows, "req1_budget_ucb.csv")
+    budget_rows = run_algorithm(algorithm_name="budgeted_ucb", learner=budget_ucb, value=value, initial_budget=initial_budget, horizon=horizon, random_seed=random_seed)
+    save_results(budget_rows, "req1_budgeted_ucb.csv")
     print("Req 1 experiments completed.")
 
 
