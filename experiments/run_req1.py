@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 import sys
 
 import numpy as np
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -30,8 +31,22 @@ from ola.utils.logging import save_results
 from ola.utils.plotting import generate_standard_req1_plots, load_result_csvs
 
 
-RESULTS_DIR = PROJECT_ROOT / "results" / "raw"
+CONFIG_PATH = PROJECT_ROOT / "configs" / "req1.yaml"
 PLOTS_DIR = PROJECT_ROOT / "results" / "plots"
+
+
+def load_req1_config(config_path: Path = CONFIG_PATH) -> Dict[str, Any]:
+    """Load Requirement 1 parameters from the YAML config file."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Missing Req 1 config file: {config_path}")
+
+    with config_path.open("r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file)
+
+    if not isinstance(config, dict):
+        raise ValueError(f"Invalid Req 1 config file: {config_path}")
+
+    return config
 
 
 def run_algorithm(
@@ -41,14 +56,16 @@ def run_algorithm(
     initial_budget: float,
     horizon: int,
     random_seed: int,
+    min_competing_bid: float,
+    max_competing_bid: float,
 ) -> List[Dict[str, Any]]:
     """Run one learner in the single-campaign environment."""
     env = SingleCampaignEnvironment(
         value=value,
         initial_budget=initial_budget,
         horizon=horizon,
-        min_competing_bid=0.0,
-        max_competing_bid=1.0,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
         random_seed=random_seed,
     )
     env.reset()
@@ -56,6 +73,7 @@ def run_algorithm(
     rows: List[Dict[str, Any]] = []
     cumulative_reward = 0.0
     cumulative_cost = 0.0
+    cumulative_regret = 0.0
 
     for _ in range(horizon):
         action = learner.select_action()
@@ -64,13 +82,17 @@ def run_algorithm(
         reward = float(outcome["reward"])
         cost = float(outcome["cost"])
 
-        if isinstance(learner, BudgetedUCB):
+        cumulative_reward += reward
+        cumulative_cost += cost
+
+        if algorithm_name == "budgeted_ucb":
             learner.update(action=outcome["action"], reward=reward, cost=cost)
         else:
             learner.update(action=outcome["action"], reward=reward)
 
-        cumulative_reward += reward
-        cumulative_cost += cost
+        benchmark_reward = float(value)
+        instant_regret = benchmark_reward - reward
+        cumulative_regret += instant_regret
 
         rows.append(
             {
@@ -84,9 +106,9 @@ def run_algorithm(
                 "budget_left": outcome["budget_left"],
                 "cumulative_reward": cumulative_reward,
                 "cumulative_cost": cumulative_cost,
-                "benchmark_reward": None,
-                "instant_regret": None,
-                "cumulative_regret": None,
+                "benchmark_reward": benchmark_reward,
+                "instant_regret": instant_regret,
+                "cumulative_regret": cumulative_regret,
                 "highest_competing_bid": outcome["info"]["highest_competing_bid"],
                 "done": outcome["done"],
             }
@@ -98,21 +120,35 @@ def run_algorithm(
     return rows
 
 
-def save_algorithm_results(rows: List[Dict[str, Any]], filename: str) -> Path:
+def save_algorithm_results(rows: List[Dict[str, Any]], output_path: Path) -> Path:
     """Save one algorithm's results using the shared CSV format."""
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = RESULTS_DIR / filename
+    output_path = Path(output_path)
+
+    if not output_path.is_absolute():
+        output_path = PROJECT_ROOT / output_path
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     save_results(rows, str(output_path))
     print(f"Saved {len(rows)} rows to {output_path}")
     return output_path
 
 
 def main() -> None:
-    horizon = 1000
-    value = 1.0
-    initial_budget = 300.0
-    random_seed = 42
-    bids = np.linspace(0.0, 1.0, 11)
+    config = load_req1_config()
+
+    experiment_config = config["experiment"]
+    campaign_config = config["campaign"]
+    bids_config = config["bids"]
+    environment_config = config["environment"]
+    outputs_config = config["outputs"]
+
+    horizon = int(experiment_config["horizon"])
+    value = float(campaign_config["value"])
+    initial_budget = float(campaign_config["initial_budget"])
+    random_seed = int(experiment_config["random_seed"])
+    bids = np.array(bids_config["values"], dtype=float)
+    min_competing_bid = float(environment_config["min_competing_bid"])
+    max_competing_bid = float(environment_config["max_competing_bid"])
 
     ucb1 = UCB1(actions=bids, horizon=horizon)
     ucb1_rows = run_algorithm(
@@ -122,8 +158,13 @@ def main() -> None:
         initial_budget=initial_budget,
         horizon=horizon,
         random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
     )
-    ucb1_path = save_algorithm_results(ucb1_rows, "req1_ucb1.csv")
+    ucb1_path = save_algorithm_results(
+        ucb1_rows,
+        Path(outputs_config["ucb1_results_file"]),
+    )
 
     budgeted_ucb = BudgetedUCB(
         actions=bids,
@@ -137,10 +178,12 @@ def main() -> None:
         initial_budget=initial_budget,
         horizon=horizon,
         random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
     )
     budgeted_ucb_path = save_algorithm_results(
         budgeted_ucb_rows,
-        "req1_budgeted_ucb.csv",
+        Path(outputs_config["budgeted_ucb_results_file"]),
     )
 
     combined_results = load_result_csvs([ucb1_path, budgeted_ucb_path])

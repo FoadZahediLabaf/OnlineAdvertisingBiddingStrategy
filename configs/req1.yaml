@@ -11,6 +11,8 @@
 #   - Add Req 2, Req 3, or Req 4 logic here.
 #   - Change parameter names without updating experiments/run_req1.py.
 
+
+
 experiment:
   name: req1_single_campaign
   random_seed: 42
@@ -33,5 +35,5 @@ environment:
 
 outputs:
   results_dir: results
-  ucb1_results_file: results/req1_ucb1.csv
-  budgeted_ucb_results_file: results/req1_budgeted_ucb.csv
+  ucb1_results_file: results/raw/req1_ucb1.csv
+  budgeted_ucb_results_file: results/raw/req1_budgeted_ucb.csv
