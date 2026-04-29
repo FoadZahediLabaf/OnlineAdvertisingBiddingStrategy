@@ -4,7 +4,10 @@
 Adversarial / highly non-stationary multi-campaign environment for Requirement 3.
 
 Owner:
-    Luigi + Simone
+    Mengyao
+
+Support:
+    Simone may edit this file when actively helping Mengyao.
 
 Purpose:
     Implement the environment used to test the best-of-both-worlds primal-dual method.
@@ -31,13 +34,16 @@ class AdversarialMultiCampaignEnvironment(BaseEnvironment):
     """Environment skeleton for Requirement 3."""
 
     def __init__(self) -> None:
-        # TODO(Luigi + Simone): initialize campaign values, bid set, adversarial sequence, budget, and horizon.
+        # TODO(Mengyao): initialize campaign values, bid set, adversarial sequence, budget, and horizon.
+        # Simone may also update this when helping Mengyao.
         pass
 
     def reset(self) -> Dict[str, Any]:
-        # TODO(Luigi + Simone): reset budget, round counter, and stored history.
+        # TODO(Mengyao): reset budget, round counter, and stored history.
+        # Simone may also update this when helping Mengyao.
         pass
 
     def step(self, action: Any) -> Dict[str, Any]:
-        # TODO(Luigi + Simone): execute one multi-campaign adversarial auction round.
+        # TODO(Mengyao): execute one multi-campaign adversarial auction round.
+        # Simone may also update this when helping Mengyao.
         pass

@@ -2,7 +2,10 @@
 Sliding-window Combinatorial UCB algorithm for Requirement 4.
 
 Owner:
-    Mengyao + Simone
+    Alessandro
+
+Support:
+    Simone may edit this file when actively helping Alessandro.
 
 Purpose:
     Implement the sliding-window version of Combinatorial-UCB for slightly
@@ -28,13 +31,16 @@ class SlidingWindowCUCB:
     """Sliding-window CUCB learner skeleton for Requirement 4."""
 
     def __init__(self) -> None:
-        # TODO(Mengyao + Simone): initialize window size, estimates, budget, and action space.
+        # TODO(Alessandro): initialize window size, estimates, budget, and action space.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def select_action(self) -> Any:
-        # TODO(Mengyao + Simone): select feasible campaign/bid combination using recent observations.
+        # TODO(Alessandro): select feasible campaign/bid combination using recent observations.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def update(self, action: Any, reward: float, cost: float) -> None:
-        # TODO(Mengyao + Simone): update sliding-window statistics after observing feedback.
+        # TODO(Alessandro): update sliding-window statistics after observing feedback.
+        # Simone may also update this when helping Alessandro.
         pass

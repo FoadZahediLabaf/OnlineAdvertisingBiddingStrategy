@@ -1,9 +1,10 @@
-
-
 # Configuration file for Requirement 3.
 #
 # Owner:
-#   Luigi + Simone
+#   Mengyao
+#
+# Support:
+#   Simone may edit this file when actively helping Mengyao.
 #
 # Purpose:
 #   Store parameters for best-of-both-worlds primal-dual experiments.
@@ -34,7 +35,8 @@ feedback:
 
 environment:
   # Placeholder for a highly non-stationary or adversarial sequence.
-  # Luigi + Simone should replace or extend this when implementing Req 3.
+  # Mengyao should replace or extend this when implementing Req 3.
+  # Simone may also update this when helping Mengyao.
   sequence_type: adversarial_placeholder
 
 algorithm:

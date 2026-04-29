@@ -127,6 +127,14 @@ If you think a file needs to be changed but it is not part of your task, ask the
 
 Before editing any file, check the "Allowed Files by Owner" table in `README.md`.
 
+Ownership summary:
+
+- Foad owns repository integration, Requirement 1, shared utilities, tests, and the final 3-way comparison output.
+- Simone owns project coordination, theory support, the master slides, and final presentation/report material.
+- Luigi owns Requirement 2 files only.
+- Mengyao owns Requirement 3 files only.
+- Alessandro owns Requirement 4 code files only.
+
 If the file is not assigned to you, ask the owner before editing it.
 
 Before making changes, check the current status:
@@ -193,6 +201,16 @@ Avoid very long functions.
 Add comments only when the logic is not obvious.
 
 Do not add useless comments.
+
+Before adding a new helper method or function, check the existing files in `ola/utils/` carefully.
+
+Use existing utility methods and functions whenever possible.
+
+Add a new utility only if the needed functionality does not already exist.
+
+If you add a new utility function, keep it general, reusable, and clearly named.
+
+Do not duplicate logic that already exists in `ola/utils/`.
 
 Bad variable names:
 

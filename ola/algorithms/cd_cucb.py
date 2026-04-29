@@ -2,7 +2,10 @@
 Change-detector Combinatorial UCB algorithm for Requirement 4.
 
 Owner:
-    Mengyao + Simone
+    Alessandro
+
+Support:
+    Simone may edit this file when actively helping Alessandro.
 
 Purpose:
     Implement the change-detector version of Combinatorial-UCB for slightly
@@ -29,13 +32,16 @@ class ChangeDetectorCUCB:
     """Change-detector CUCB learner skeleton for Requirement 4."""
 
     def __init__(self) -> None:
-        # TODO(Mengyao + Simone): initialize detector parameters, estimates, budget, and action space.
+        # TODO(Alessandro): initialize detector parameters, estimates, budget, and action space.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def select_action(self) -> Any:
-        # TODO(Mengyao + Simone): select feasible campaign/bid combination using current estimates.
+        # TODO(Alessandro): select feasible campaign/bid combination using current estimates.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def update(self, action: Any, reward: float, cost: float) -> None:
-        # TODO(Mengyao + Simone): update estimates and run change detection.
+        # TODO(Alessandro): update estimates and run change detection.
+        # Simone may also update this when helping Alessandro.
         pass

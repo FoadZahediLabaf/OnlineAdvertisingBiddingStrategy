@@ -2,7 +2,10 @@
 Experiment runner for Requirement 4.
 
 Owner:
-    Mengyao + Simone
+    Alessandro
+
+Support:
+    Simone may edit this file when actively helping Alessandro.
 
 Purpose:
     Run slightly non-stationary experiments and compare adaptive algorithms.
@@ -20,7 +23,8 @@ Do not:
 
 
 def main() -> None:
-    # TODO(Mengyao + Simone): load Req 4 config, initialize environment, run algorithms, and save results.
+    # TODO(Alessandro): load Req 4 config, initialize environment, run algorithms, and save results.
+    # Simone may also update this when helping Alessandro.
     pass
 
 
