@@ -1,10 +1,11 @@
-
-
 """
 Experiment runner for Requirement 3.
 
 Owner:
-    Luigi + Simone
+    Mengyao
+
+Support:
+    Simone may edit this file when actively helping Mengyao.
 
 Purpose:
     Run best-of-both-worlds experiments using the primal-dual bidding method.
@@ -17,7 +18,8 @@ Do not:
 
 
 def main() -> None:
-    # TODO(Luigi + Simone): load Req 3 config, initialize environment, run primal-dual method, and save results.
+    # TODO(Mengyao): load Req 3 config, initialize environment, run primal-dual method, and save results.
+    # Simone may also update this when helping Mengyao.
     pass
 
 

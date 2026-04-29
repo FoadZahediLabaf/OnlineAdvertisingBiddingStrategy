@@ -2,7 +2,7 @@
 Bidding utility functions for the OLA project.
 
 Owner:
-    Foad
+    Shared utility file
 
 Purpose:
     Store general helper functions for auction outcomes, rewards, costs, and bid checks.

@@ -4,7 +4,10 @@
 Slightly non-stationary multi-campaign environment for Requirement 4.
 
 Owner:
-    Mengyao + Simone
+    Alessandro
+
+Support:
+    Simone may edit this file when actively helping Alessandro.
 
 Purpose:
     Implement the non-stationary environment used to compare adaptive algorithms.
@@ -32,13 +35,16 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
     """Environment skeleton for Requirement 4."""
 
     def __init__(self) -> None:
-        # TODO(Mengyao + Simone): initialize intervals, distributions, campaign values, budget, and horizon.
+        # TODO(Alessandro): initialize intervals, distributions, campaign values, budget, and horizon.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def reset(self) -> Dict[str, Any]:
-        # TODO(Mengyao + Simone): reset budget, round counter, interval state, and stored history.
+        # TODO(Alessandro): reset budget, round counter, interval state, and stored history.
+        # Simone may also update this when helping Alessandro.
         pass
 
     def step(self, action: Any) -> Dict[str, Any]:
-        # TODO(Mengyao + Simone): execute one multi-campaign non-stationary auction round.
+        # TODO(Alessandro): execute one multi-campaign non-stationary auction round.
+        # Simone may also update this when helping Alessandro.
         pass

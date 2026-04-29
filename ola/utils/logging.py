@@ -2,7 +2,7 @@
 Logging and result-saving utilities for the OLA project.
 
 Owner:
-    Foad
+    Shared utility file
 
 Purpose:
     Keep the CSV result format consistent across all requirements.

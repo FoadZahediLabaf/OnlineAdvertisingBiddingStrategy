@@ -506,13 +506,19 @@ Use the file names below unless the group agrees on a different name.
 
 | Owner | Files / folders they can edit |
 |---|---|
-| Foad | `README.md`, `CONTRIBUTING.md`, `.gitignore`, `requirements.txt`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/utils/bidding.py`, `ola/utils/logging.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `results/raw/req1_*.csv`, `results/processed/req4_3way_comparison*.csv` |
-| Luigi | `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `ola/utils/graph.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `results/raw/req2_*.csv` |
-| Luigi + Simone | `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `results/raw/req3_*.csv` |
-| Mengyao + Simone | `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `results/raw/req4_*.csv` |
-| Simone + Team | Final slides only, presentation notes, and shared final-report material. Do not edit code files for this unless the file owner agrees. |
+| Foad | Project co-lead, repository integration, Requirement 1, code reviewer for the other requirements, and final 3-way comparison: `README.md`, `CONTRIBUTING.md`, `notebooks/req1_single_campaign.ipynb`, `requirements.txt`, `.gitignore`, `ola/__init__.py`, `ola/environments/__init__.py`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/__init__.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `experiments/run_req1.py`, `configs/req1.yaml`. Foad can review Luigi's, Mengyao's, and Alessandro's code, give consultation, and make code changes only when needed and with the relevant owner's approval. |
+| Simone | Project lead, theory, coordination, master slides, and Requirement 4 theory support: `slides/notes.md`, `slides/figures/*`, final presentation material, shared report material, and theory notes for Requirement 4. Simone can also edit Req 3 and Req 4 code when helping Mengyao and Alessandro |
+| Luigi | Requirement 2 only: `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `notebooks/req2_multi_campaign.ipynb` |
+| Mengyao | Requirement 3 only: `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `notebooks/req3_primal_dual.ipynb` |
+| Alessandro | Requirement 4 code only: `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `notebooks/req4_non_stationary.ipynb` |
+| Team | Final review, dry runs, Q&A preparation, and shared discussion of results. Do not edit code files unless the file owner agrees. |
 
-Note: `ola/utils/graph.py` is mainly used by Requirement 2, but changes must be communicated because Requirement 3 and Requirement 4 may also use it.
+
+Result files and test files are not part of personal ownership. They are generated or shared validation artifacts. Do not change them unless the group agrees or the relevant experiment/output needs to be regenerated.
+
+Note: `ola/utils/` is shared by the whole team. Everyone may work on utility files when the change is needed for their requirement, but utility changes must be communicated because they can affect other requirements. If a utility file is only used by one person or one requirement, that person can own that specific change.
+
+Note: Foad is also a project code reviewer. He can review other requirement code, give technical consultation, and suggest changes. If a direct code change is necessary in another owner's files, Foad should get approval from that owner first.
 
 ---
 
@@ -525,9 +531,13 @@ These files affect everyone. Do not edit them without telling the group first:
     requirements.txt
     .gitignore
     ola/environments/base.py
+    ola/utils/__init__.py
     ola/utils/bidding.py
     ola/utils/logging.py
+    ola/utils/plotting.py
     ola/utils/graph.py
+    ola/utils/oracle.py
+    ola/utils/seeding.py
 
 ---
 

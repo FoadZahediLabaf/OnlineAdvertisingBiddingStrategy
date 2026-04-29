@@ -2,10 +2,10 @@
 Graph utilities for campaign compatibility constraints.
 
 Owner:
-    Luigi
+    Shared utility file
 
 Shared with:
-    Requirement 3 and Requirement 4
+    Requirement 2, Requirement 3, and Requirement 4
 
 Purpose:
     Store helper functions for conflict graphs between campaigns.
