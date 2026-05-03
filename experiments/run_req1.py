@@ -83,6 +83,60 @@ def expected_cost_for_uniform_competing_bid(
     return bid * win_probability
 
 
+def compute_budgeted_lp_benchmark(
+    expected_rewards: List[float],
+    expected_costs: List[float],
+    rho: float,
+) -> float:
+    """Solve the single-campaign budgeted benchmark LP over bid distributions.
+
+    The LP is:
+        maximize    sum_b gamma_b expected_reward(b)
+        subject to  sum_b gamma_b expected_cost(b) <= rho
+                    sum_b gamma_b = 1
+                    gamma_b >= 0
+
+    With one budget constraint, an optimal solution has support on at most two bids.
+    We therefore enumerate all feasible single bids and all two-bid mixtures.
+    """
+    if rho < 0.0:
+        raise ValueError("rho must be non-negative")
+    if len(expected_rewards) != len(expected_costs):
+        raise ValueError("expected_rewards and expected_costs must have same length")
+    if not expected_rewards:
+        raise ValueError("At least one bid is required")
+
+    best_reward = -float("inf")
+    number_of_bids = len(expected_rewards)
+
+    for reward, cost in zip(expected_rewards, expected_costs):
+        if cost <= rho:
+            best_reward = max(best_reward, reward)
+
+    for i in range(number_of_bids):
+        for j in range(i + 1, number_of_bids):
+            cost_i = expected_costs[i]
+            cost_j = expected_costs[j]
+
+            if cost_i == cost_j:
+                continue
+
+            probability_i = (rho - cost_j) / (cost_i - cost_j)
+            probability_j = 1.0 - probability_i
+
+            if 0.0 <= probability_i <= 1.0 and 0.0 <= probability_j <= 1.0:
+                mixed_reward = (
+                    probability_i * expected_rewards[i]
+                    + probability_j * expected_rewards[j]
+                )
+                best_reward = max(best_reward, mixed_reward)
+
+    if best_reward == -float("inf"):
+        return 0.0
+
+    return float(best_reward)
+
+
 def compute_req1_benchmarks(
     bids: np.ndarray,
     value: float,
@@ -106,23 +160,20 @@ def compute_req1_benchmarks(
     ]
     ucb1_benchmark = max(expected_rewards)
 
-    rho = initial_budget / horizon
-    feasible_rewards = [
-        expected_reward_for_uniform_competing_bid(
+    expected_costs = [
+        expected_cost_for_uniform_competing_bid(
             bid=float(bid),
-            value=value,
             min_competing_bid=min_competing_bid,
             max_competing_bid=max_competing_bid,
         )
         for bid in bids
-        if expected_cost_for_uniform_competing_bid(
-            bid=float(bid),
-            min_competing_bid=min_competing_bid,
-            max_competing_bid=max_competing_bid,
-        )
-        <= rho
     ]
-    budgeted_benchmark = max(feasible_rewards) if feasible_rewards else 0.0
+    rho = initial_budget / horizon
+    budgeted_benchmark = compute_budgeted_lp_benchmark(
+        expected_rewards=expected_rewards,
+        expected_costs=expected_costs,
+        rho=rho,
+    )
 
     return float(ucb1_benchmark), float(budgeted_benchmark)
 

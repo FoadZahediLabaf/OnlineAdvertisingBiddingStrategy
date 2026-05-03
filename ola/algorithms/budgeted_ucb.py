@@ -21,10 +21,13 @@ import numpy as np
 
 
 class BudgetedUCB:
-    """Budget-aware UCB learner skeleton for Requirement 1.
-    In Requirement 1, each action is one possible bid.
+    """LP-based budget-aware UCB learner for Requirement 1.
 
-    This learner estimates both reward and cost for each bid."""
+    In Requirement 1, each action is one possible bid. The learner estimates
+    both reward and cost for each bid, builds reward UCBs and cost LCBs, solves
+    the optimistic budgeted LP over bid distributions, and samples one bid from
+    the resulting distribution.
+    """
 
     def __init__(
             self,
@@ -47,43 +50,116 @@ class BudgetedUCB:
         self.total_rewards = np.zeros(self.n_actions, dtype=float)
         self.total_costs = np.zeros(self.n_actions, dtype=float)
         self.t = 0
+        self.rng = np.random.default_rng(0)
 
     def select_action(self) -> Any:
-        if self.budget_left <=0:
+        """Select one bid by solving the optimistic budgeted LP and sampling."""
+        if self.budget_left <= 0:
             return 0.0
-        for index in range(self.n_actions):
-            if self.counts[index] == 0 and self.actions[index] <= self.budget_left:
-                return float(self.actions[index])
-        
-            
+
         remaining_rounds = max(1, self.horizon - self.t)
         budget_per_remaining_round = self.budget_left / remaining_rounds
+
         empirical_rewards = self.total_rewards / np.maximum(1, self.counts)
         empirical_costs = self.total_costs / np.maximum(1, self.counts)
         confidence_widths = np.sqrt(
             2 * np.log(self.horizon) / np.maximum(1, self.counts)
         )
-        reward_ucbs = empirical_rewards + confidence_widths
 
+        reward_ucbs = empirical_rewards + confidence_widths
         cost_lcbs = np.maximum(0.0, empirical_costs - confidence_widths)
 
-        feasible_indices = np.where(
+        distribution = self._solve_optimistic_budgeted_lp(
+            reward_ucbs=reward_ucbs,
+            cost_lcbs=cost_lcbs,
+            budget_per_remaining_round=budget_per_remaining_round,
+        )
 
-            (self.actions <= self.budget_left)
-
-            & (cost_lcbs <= budget_per_remaining_round)
-
-        )[0]
-
-        if len(feasible_indices) == 0:
-
+        if np.sum(distribution) <= 0.0:
             return 0.0
 
-        best_feasible_position = int(np.argmax(reward_ucbs[feasible_indices]))
+        selected_index = int(self.rng.choice(self.n_actions, p=distribution))
+        return float(self.actions[selected_index])
 
-        best_index = int(feasible_indices[best_feasible_position])
+    def _solve_optimistic_budgeted_lp(
+        self,
+        reward_ucbs: np.ndarray,
+        cost_lcbs: np.ndarray,
+        budget_per_remaining_round: float,
+    ) -> np.ndarray:
+        """Solve the optimistic LP over bid distributions for Req 1.
 
-        return float(self.actions[best_index])
+        The LP is:
+            maximize    sum_b gamma_b reward_ucb(b)
+            subject to  sum_b gamma_b cost_lcb(b) <= budget_per_remaining_round
+                        sum_b gamma_b = 1
+                        gamma_b >= 0
+
+        Since Req 1 has only one budget constraint, an optimal extreme point has
+        support on at most two bids. We enumerate feasible single bids and all
+        two-bid mixtures.
+        """
+        affordable_indices = np.where(self.actions <= self.budget_left)[0]
+        if len(affordable_indices) == 0:
+            return np.zeros(self.n_actions, dtype=float)
+
+        best_distribution = np.zeros(self.n_actions, dtype=float)
+        best_objective = -float("inf")
+        tie_tolerance = 1e-12
+
+        def register_candidate(candidate_distribution: np.ndarray, objective: float) -> None:
+            nonlocal best_distribution, best_objective
+            if objective > best_objective + tie_tolerance:
+                best_objective = objective
+                best_distribution = candidate_distribution.copy()
+            elif abs(objective - best_objective) <= tie_tolerance:
+                best_distribution = best_distribution + candidate_distribution
+
+        for index in affordable_indices:
+            cost = float(cost_lcbs[index])
+            if cost <= budget_per_remaining_round:
+                objective = float(reward_ucbs[index])
+                candidate_distribution = np.zeros(self.n_actions, dtype=float)
+                candidate_distribution[index] = 1.0
+                register_candidate(candidate_distribution, objective)
+
+        for left_position, left_index in enumerate(affordable_indices):
+            for right_index in affordable_indices[left_position + 1:]:
+                cost_left = float(cost_lcbs[left_index])
+                cost_right = float(cost_lcbs[right_index])
+
+                if cost_left == cost_right:
+                    continue
+
+                probability_left = (
+                    budget_per_remaining_round - cost_right
+                ) / (cost_left - cost_right)
+                probability_right = 1.0 - probability_left
+
+                if 0.0 <= probability_left <= 1.0 and 0.0 <= probability_right <= 1.0:
+                    objective = (
+                        probability_left * float(reward_ucbs[left_index])
+                        + probability_right * float(reward_ucbs[right_index])
+                    )
+                    candidate_distribution = np.zeros(self.n_actions, dtype=float)
+                    candidate_distribution[left_index] = probability_left
+                    candidate_distribution[right_index] = probability_right
+                    register_candidate(candidate_distribution, objective)
+
+        if np.sum(best_distribution) <= 0.0:
+            zero_bid_indices = np.where(np.isclose(self.actions, 0.0))[0]
+            if len(zero_bid_indices) > 0:
+                best_distribution[int(zero_bid_indices[0])] = 1.0
+
+        return self._normalize_distribution(best_distribution)
+
+    def _normalize_distribution(self, distribution: np.ndarray) -> np.ndarray:
+        """Return a valid probability distribution."""
+        total_probability = float(np.sum(distribution))
+        if total_probability <= 0.0:
+            return distribution
+        return distribution / total_probability
+
     def update(self, action: Any, reward: float, cost: float) -> None:
         """Update reward, cost, and remaining budget after one round."""
 

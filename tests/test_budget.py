@@ -4,6 +4,7 @@ import pytest
 
 from ola.algorithms.budgeted_ucb import BudgetedUCB
 from experiments.run_req1 import (
+    compute_budgeted_lp_benchmark,
     compute_req1_benchmarks,
     expected_cost_for_uniform_competing_bid,
     expected_reward_for_uniform_competing_bid,
@@ -80,7 +81,7 @@ def test_req1_expected_reward_allows_negative_utility_when_bid_exceeds_value() -
     assert reward == pytest.approx(-0.2)
 
 
-def test_req1_budgeted_benchmark_uses_budget_feasibility() -> None:
+def test_req1_budgeted_benchmark_uses_lp_mixture() -> None:
     ucb1_benchmark, budgeted_benchmark = compute_req1_benchmarks(
         bids=[0.0, 0.5, 1.0],
         value=1.0,
@@ -91,4 +92,55 @@ def test_req1_budgeted_benchmark_uses_budget_feasibility() -> None:
     )
 
     assert ucb1_benchmark == pytest.approx(0.25)
-    assert budgeted_benchmark == pytest.approx(0.0)
+    assert budgeted_benchmark == pytest.approx(0.1)
+
+
+def test_budgeted_lp_benchmark_can_mix_two_bids() -> None:
+    benchmark = compute_budgeted_lp_benchmark(
+        expected_rewards=[0.0, 0.25],
+        expected_costs=[0.0, 0.25],
+        rho=0.1,
+    )
+
+    assert benchmark == pytest.approx(0.1)
+
+
+def test_budgeted_ucb_optimistic_lp_can_mix_two_bids() -> None:
+    learner = BudgetedUCB(actions=[0.0, 0.5], horizon=10, initial_budget=1.0)
+
+    distribution = learner._solve_optimistic_budgeted_lp(
+        reward_ucbs=[0.0, 0.25],
+        cost_lcbs=[0.0, 0.25],
+        budget_per_remaining_round=0.1,
+    )
+
+    assert distribution[0] == pytest.approx(0.6)
+    assert distribution[1] == pytest.approx(0.4)
+    assert sum(distribution) == pytest.approx(1.0)
+
+
+def test_budgeted_ucb_optimistic_lp_ignores_bids_above_remaining_budget() -> None:
+    learner = BudgetedUCB(actions=[0.0, 0.5], horizon=10, initial_budget=0.3)
+
+    distribution = learner._solve_optimistic_budgeted_lp(
+        reward_ucbs=[0.0, 10.0],
+        cost_lcbs=[0.0, 0.0],
+        budget_per_remaining_round=0.3,
+    )
+
+    assert distribution[0] == pytest.approx(1.0)
+    assert distribution[1] == pytest.approx(0.0)
+
+
+def test_budgeted_ucb_optimistic_lp_spreads_tied_optimal_actions() -> None:
+    learner = BudgetedUCB(actions=[0.0, 0.1, 0.2], horizon=10, initial_budget=1.0)
+
+    distribution = learner._solve_optimistic_budgeted_lp(
+        reward_ucbs=[1.0, 1.0, 1.0],
+        cost_lcbs=[0.0, 0.0, 0.0],
+        budget_per_remaining_round=0.1,
+    )
+
+    assert distribution[0] == pytest.approx(1 / 3)
+    assert distribution[1] == pytest.approx(1 / 3)
+    assert distribution[2] == pytest.approx(1 / 3)
