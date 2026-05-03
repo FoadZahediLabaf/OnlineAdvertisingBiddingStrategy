@@ -14,7 +14,7 @@ Do not:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import sys
 
 import numpy as np
@@ -31,8 +31,100 @@ from ola.utils.logging import save_results
 from ola.utils.plotting import generate_standard_req1_plots, load_result_csvs
 
 
+
 CONFIG_PATH = PROJECT_ROOT / "configs" / "req1.yaml"
 PLOTS_DIR = PROJECT_ROOT / "results" / "plots"
+
+
+def expected_reward_for_uniform_competing_bid(
+    bid: float,
+    value: float,
+    min_competing_bid: float,
+    max_competing_bid: float,
+) -> float:
+    """Compute E[(value - bid) 1[bid >= m]] for m uniformly distributed."""
+    if max_competing_bid < min_competing_bid:
+        raise ValueError("max_competing_bid must be >= min_competing_bid")
+
+    if bid < min_competing_bid:
+        win_probability = 0.0
+    elif bid >= max_competing_bid:
+        win_probability = 1.0
+    else:
+        support_width = max_competing_bid - min_competing_bid
+        if support_width == 0.0:
+            win_probability = 1.0
+        else:
+            win_probability = (bid - min_competing_bid) / support_width
+
+    return (value - bid) * win_probability
+
+
+def expected_cost_for_uniform_competing_bid(
+    bid: float,
+    min_competing_bid: float,
+    max_competing_bid: float,
+) -> float:
+    """Compute E[bid 1[bid >= m]] for m uniformly distributed."""
+    if max_competing_bid < min_competing_bid:
+        raise ValueError("max_competing_bid must be >= min_competing_bid")
+
+    if bid < min_competing_bid:
+        win_probability = 0.0
+    elif bid >= max_competing_bid:
+        win_probability = 1.0
+    else:
+        support_width = max_competing_bid - min_competing_bid
+        if support_width == 0.0:
+            win_probability = 1.0
+        else:
+            win_probability = (bid - min_competing_bid) / support_width
+
+    return bid * win_probability
+
+
+def compute_req1_benchmarks(
+    bids: np.ndarray,
+    value: float,
+    initial_budget: float,
+    horizon: int,
+    min_competing_bid: float,
+    max_competing_bid: float,
+) -> Tuple[float, float]:
+    """Compute non-budgeted and budget-feasible per-round benchmarks for Req 1."""
+    if horizon <= 0:
+        raise ValueError("horizon must be positive")
+
+    expected_rewards = [
+        expected_reward_for_uniform_competing_bid(
+            bid=float(bid),
+            value=value,
+            min_competing_bid=min_competing_bid,
+            max_competing_bid=max_competing_bid,
+        )
+        for bid in bids
+    ]
+    ucb1_benchmark = max(expected_rewards)
+
+    rho = initial_budget / horizon
+    feasible_rewards = [
+        expected_reward_for_uniform_competing_bid(
+            bid=float(bid),
+            value=value,
+            min_competing_bid=min_competing_bid,
+            max_competing_bid=max_competing_bid,
+        )
+        for bid in bids
+        if expected_cost_for_uniform_competing_bid(
+            bid=float(bid),
+            min_competing_bid=min_competing_bid,
+            max_competing_bid=max_competing_bid,
+        )
+        <= rho
+    ]
+    budgeted_benchmark = max(feasible_rewards) if feasible_rewards else 0.0
+
+    return float(ucb1_benchmark), float(budgeted_benchmark)
 
 
 def load_req1_config(config_path: Path = CONFIG_PATH) -> Dict[str, Any]:
@@ -58,6 +150,7 @@ def run_algorithm(
     random_seed: int,
     min_competing_bid: float,
     max_competing_bid: float,
+    benchmark_reward_per_round: float,
 ) -> List[Dict[str, Any]]:
     """Run one learner in the single-campaign environment."""
     env = SingleCampaignEnvironment(
@@ -90,7 +183,7 @@ def run_algorithm(
         else:
             learner.update(action=outcome["action"], reward=reward)
 
-        benchmark_reward = float(value)
+        benchmark_reward = float(benchmark_reward_per_round)
         instant_regret = benchmark_reward - reward
         cumulative_regret += instant_regret
 
@@ -150,6 +243,15 @@ def main() -> None:
     min_competing_bid = float(environment_config["min_competing_bid"])
     max_competing_bid = float(environment_config["max_competing_bid"])
 
+    ucb1_benchmark, budgeted_ucb_benchmark = compute_req1_benchmarks(
+        bids=bids,
+        value=value,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+    )
+
     ucb1 = UCB1(actions=bids, horizon=horizon)
     ucb1_rows = run_algorithm(
         algorithm_name="ucb1",
@@ -160,6 +262,7 @@ def main() -> None:
         random_seed=random_seed,
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=ucb1_benchmark,
     )
     ucb1_path = save_algorithm_results(
         ucb1_rows,
@@ -180,6 +283,7 @@ def main() -> None:
         random_seed=random_seed,
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=budgeted_ucb_benchmark,
     )
     budgeted_ucb_path = save_algorithm_results(
         budgeted_ucb_rows,
