@@ -27,13 +27,12 @@ bids:
   values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 environment:
-  # Placeholder distribution parameters for the highest competing bid.
-  # Foad should replace or extend this when implementing Req 1.
+  # Uniform distribution parameters for the highest competing bid in Req 1.
   competing_bid_distribution: uniform
   min_competing_bid: 0.0
   max_competing_bid: 1.0
 
 outputs:
-  results_dir: results
+  results_dir: results/raw
   ucb1_results_file: results/raw/req1_ucb1.csv
   budgeted_ucb_results_file: results/raw/req1_budgeted_ucb.csv
