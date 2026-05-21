@@ -23,7 +23,7 @@ experiment:
 campaigns:
   number_of_campaigns: 3
   values: [1.0, 1.0, 1.0]
-  initial_budget: 600.0
+  initial_budget: 400.0
 
 bids:
   # Discrete bid set shared across all campaigns. Bids passed to step()

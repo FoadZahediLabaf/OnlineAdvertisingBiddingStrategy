@@ -8,12 +8,6 @@ Purpose:
     Implement a Combinatorial-UCB bidding strategy with budget constraints for
     multiple campaigns.
 
-What to implement here:
-    - UCB estimates for campaign/bid choices.
-    - Selection of a feasible set of campaigns and bids.
-    - Budget-aware action selection.
-    - Compatibility with the conflict graph.
-
 Do not:
     - Add single-campaign UCB1 logic here.
     - Add primal-dual logic here.
@@ -22,7 +16,7 @@ Do not:
 """
 
 from itertools import combinations
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 import numpy as np
 
@@ -30,18 +24,24 @@ from ola.utils.graph import build_conflict_graph, is_feasible_campaign_set
 
 
 BID_SET_TOLERANCE = 1e-9
+TIE_TOLERANCE = 1e-12
 
 
 class CombinatorialUCB:
-    """Combinatorial-UCB learner skeleton for Requirement 2.
+    """Combinatorial-UCB learner for Requirement 2.
 
     The learner maintains per-(campaign, bid) reward and cost estimates, builds
     optimistic UCB scores and pessimistic LCB costs, and selects a feasible
     super-arm (a set of non-conflicting campaigns plus a bid per campaign) whose
     optimistic cost respects the per-round budget share.
+
+    Exploration is handled by an explicit warm-up phase: while any (campaign,
+    bid) pair has never been played, the learner picks the feasible super-arm
+    that covers the most unplayed pairs. The budget feasibility check is
+    skipped during warm-up; otherwise unplayed arms (cost estimate = 0) would
+    silently dominate the feasibility set without ever being validated.
     """
 
-    # TODO(Luigi): initialize campaign arms, confidence estimates, budget, and graph constraints.
     def __init__(
         self,
         number_of_campaigns: int,
@@ -91,92 +91,136 @@ class CombinatorialUCB:
         self.cumulative_cost = 0.0
         self.rng = np.random.default_rng(random_seed)
 
-    # TODO(Luigi): select feasible campaign/bid combination using optimism and budget constraints.
     def select_action(self) -> Any:
         """Select a feasible super-arm using optimistic reward and pessimistic cost."""
         positive_bids = self.bid_values[self.bid_values > 0.0]
         min_positive_bid = float(positive_bids.min()) if len(positive_bids) > 0 else 0.0
 
+        # Abstain when budget cannot cover even the cheapest positive bid.
         if self.budget_left < min_positive_bid:
             return {"active_campaigns": [], "bids": []}
 
-        # Slide 24: confidence bonus uses log(T), where T is the horizon.
-        bonus = np.sqrt(
-            2.0 * np.log(self.horizon) / np.maximum(self.n_pulls, 1.0)
-        )
-        ucb_reward = self.mean_reward + bonus
-        lcb_cost = np.maximum(self.mean_cost - bonus, 0.0)
+        unplayed = self.n_pulls == 0
+
+        # Warm-up: each (campaign, bid) pair must be tried at least once before
+        # the budget feasibility check becomes meaningful. Otherwise unplayed
+        # arms appear free (LCB cost = 0) and an "expensive" arm could be picked
+        # as feasible without ever being validated.
+        if unplayed.any():
+            return self._warmup_select(unplayed)
+
+        # Slide 24: confidence width uses log(T), where T is the horizon.
+        confidence_widths = np.sqrt(2.0 * np.log(self.horizon) / self.n_pulls)
+        ucb_reward = self.mean_reward + confidence_widths
+        lcb_cost = np.maximum(self.mean_cost - confidence_widths, 0.0)
 
         budget_per_round = self.budget_left / max(self.horizon - self.t, 1)
 
-        best_set: Optional[FrozenSet[int]] = None
-        best_score = -float("inf")
-        best_bids: Dict[int, int] = {}
+        # Per-campaign best bid by UCB, with random tie-break across equal UCBs.
+        best_bid_idx_per_campaign = self._argmax_with_random_tiebreak(ucb_reward)
 
+        best_score = -np.inf
+        tied_candidates: List[Tuple[FrozenSet[int], Dict[int, int]]] = []
         fallback_set: Optional[FrozenSet[int]] = None
         fallback_cost = float("inf")
-        fallback_bids: Dict[int, int] = {}
 
         for feasible_set in self.feasible_sets:
-            best_bid_idx: Dict[int, int] = {}
-            superarm_ucb = 0.0
-            superarm_lcb_cost = 0.0
-            for i in feasible_set:
-                b_idx = int(np.argmax(ucb_reward[i]))
-                best_bid_idx[i] = b_idx
-                superarm_ucb += float(ucb_reward[i, b_idx])
-                superarm_lcb_cost += float(lcb_cost[i, b_idx])
+            bid_choice = {i: int(best_bid_idx_per_campaign[i]) for i in feasible_set}
+            superarm_ucb = float(sum(ucb_reward[i, bid_choice[i]] for i in feasible_set))
+            superarm_lcb_cost = float(sum(lcb_cost[i, bid_choice[i]] for i in feasible_set))
 
             if superarm_lcb_cost <= budget_per_round:
-                if superarm_ucb > best_score:
+                if superarm_ucb > best_score + TIE_TOLERANCE:
                     best_score = superarm_ucb
-                    best_set = feasible_set
-                    best_bids = best_bid_idx
+                    tied_candidates = [(feasible_set, bid_choice)]
+                elif abs(superarm_ucb - best_score) <= TIE_TOLERANCE:
+                    tied_candidates.append((feasible_set, bid_choice))
 
             if superarm_lcb_cost < fallback_cost:
                 fallback_cost = superarm_lcb_cost
                 fallback_set = feasible_set
-                fallback_bids = best_bid_idx
 
-        if best_set is None:
-            # No feasible super-arm fits the budget: abstain on the cheapest set.
-            chosen_set = fallback_set if fallback_set is not None else frozenset()
+        if tied_candidates:
+            # Break ties between equal-score feasible super-arms uniformly at random.
+            chosen_set, chosen_bids = tied_candidates[
+                int(self.rng.integers(len(tied_candidates)))
+            ]
             sorted_campaigns = sorted(chosen_set)
-            zero_bid = float(self.bid_values[0])
-            return {
-                "active_campaigns": sorted_campaigns,
-                "bids": [zero_bid for _ in sorted_campaigns],
-            }
+            bids = [float(self.bid_values[chosen_bids[i]]) for i in sorted_campaigns]
+            return {"active_campaigns": sorted_campaigns, "bids": bids}
 
-        sorted_campaigns = sorted(best_set)
-        bids = [float(self.bid_values[best_bids[i]]) for i in sorted_campaigns]
+        # No feasible super-arm fits the budget: abstain on the cheapest set.
+        chosen_set = fallback_set if fallback_set is not None else frozenset()
+        sorted_campaigns = sorted(chosen_set)
+        zero_bid = float(self.bid_values[0])
+        return {
+            "active_campaigns": sorted_campaigns,
+            "bids": [zero_bid for _ in sorted_campaigns],
+        }
+
+    def _warmup_select(self, unplayed: np.ndarray) -> Dict[str, Any]:
+        """Pick the feasible super-arm covering the most unplayed (campaign, bid) pairs."""
+        best_count = -1
+        candidates: List[Tuple[FrozenSet[int], Dict[int, int]]] = []
+        for feasible_set in self.feasible_sets:
+            bid_choice: Dict[int, int] = {}
+            covered = 0
+            for i in feasible_set:
+                unplayed_bid_idx = np.where(unplayed[i])[0]
+                if len(unplayed_bid_idx) > 0:
+                    bid_choice[i] = int(self.rng.choice(unplayed_bid_idx))
+                    covered += 1
+                else:
+                    # All bids for this campaign already played: pick at random.
+                    bid_choice[i] = int(self.rng.integers(len(self.bid_values)))
+            if covered > best_count:
+                best_count = covered
+                candidates = [(feasible_set, bid_choice)]
+            elif covered == best_count:
+                candidates.append((feasible_set, bid_choice))
+
+        chosen_set, chosen_bids = candidates[int(self.rng.integers(len(candidates)))]
+        sorted_campaigns = sorted(chosen_set)
+        bids = [float(self.bid_values[chosen_bids[i]]) for i in sorted_campaigns]
         return {"active_campaigns": sorted_campaigns, "bids": bids}
 
-    # TODO(Luigi): update estimates after observing reward/cost feedback.
+    def _argmax_with_random_tiebreak(self, scores: np.ndarray) -> np.ndarray:
+        """Per-row argmax with uniform random tie-break across equal entries."""
+        result = np.zeros(scores.shape[0], dtype=int)
+        for i in range(scores.shape[0]):
+            row = scores[i]
+            max_val = row.max()
+            tied = np.where(np.abs(row - max_val) <= TIE_TOLERANCE)[0]
+            result[i] = int(self.rng.choice(tied))
+        return result
+
     def update(self, action: Any, step_result: Any) -> None:
         """Update per-campaign reward and cost estimates from one step outcome."""
         active_campaigns: List[int] = action["active_campaigns"]
+        chosen_bids: List[float] = action["bids"]
         wins: List[int] = step_result["wins"]
         effective_bids: List[float] = step_result["bids"]
         reward = float(step_result["reward"])
         cost = float(step_result["cost"])
 
-        for i in active_campaigns:
-            bid_played = float(effective_bids[i])
+        for pos, i in enumerate(active_campaigns):
+            chosen_bid = float(chosen_bids[pos])
             matching_indices = np.where(
-                np.abs(self.bid_values - bid_played) <= BID_SET_TOLERANCE
+                np.abs(self.bid_values - chosen_bid) <= BID_SET_TOLERANCE
             )[0]
             if len(matching_indices) == 0:
-                # Scaled bids from the environment may not lie in the discrete set.
+                # Defensive: chosen bids come from self.bid_values, this shouldn't happen.
                 continue
             b_idx = int(matching_indices[0])
 
+            # Per-campaign realized outcomes use the effective bid run by the env.
+            effective_bid_i = float(effective_bids[i])
             r_i = (
-                float(self.campaign_values[i]) - bid_played
+                float(self.campaign_values[i]) - effective_bid_i
                 if wins[i]
                 else 0.0
             )
-            c_i = bid_played if wins[i] else 0.0
+            c_i = effective_bid_i if wins[i] else 0.0
 
             self.n_pulls[i, b_idx] += 1
             self.mean_reward[i, b_idx] += (
