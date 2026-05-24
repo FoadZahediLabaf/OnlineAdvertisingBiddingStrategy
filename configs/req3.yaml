@@ -8,12 +8,6 @@
 #
 # Purpose:
 #   Store parameters for best-of-both-worlds primal-dual experiments.
-#
-# Do not:
-#   - Add Req 1 single-campaign-only parameters here.
-#   - Add Req 2 stochastic-only parameters here.
-#   - Add Req 4 sliding-window or change-detector parameters here.
-#   - Change parameter names without updating experiments/run_req3.py.
 
 experiment:
   name: req3_best_of_both_worlds
@@ -21,28 +15,32 @@ experiment:
   horizon: 1000
 
 campaigns:
-  number_of_campaigns: 3
-  values: [1.0, 1.0, 1.0]
-  initial_budget: 500.0
+  number_of_campaigns: 5
+  values: [1.0, 1.0, 1.0, 1.0, 1.0]
+  initial_budget: 250.0
+  conflict_edges:
+    - [0, 1]
+    - [0, 2]
+    - [1, 3]
+    - [2, 3]
+    - [3, 4]
 
 bids:
-  # Shared discrete bid set used for each campaign.
-  values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  values: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 feedback:
-  # Requirement 3 can assume full feedback.
   type: full_feedback
 
 environment:
-  # Placeholder for a highly non-stationary or adversarial sequence.
-  # Mengyao should replace or extend this when implementing Req 3.
-  # Simone may also update this when helping Mengyao.
-  sequence_type: adversarial_placeholder
+  sequence_type: piecewise_gaussian
+  regime_length: 100
+  sigma_scale: 0.05
 
 algorithm:
-  learning_rate: null
+  learning_rate: 0.2
   dual_learning_rate: null
 
 outputs:
   results_dir: results
-  primal_dual_results_file: results/req3_primal_dual.csv
+  primal_dual_results_file: results/raw/req3_primal_dual.csv
+  plots_dir: results/plots
