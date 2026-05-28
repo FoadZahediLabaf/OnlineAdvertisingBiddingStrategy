@@ -229,10 +229,14 @@ def run_algorithm(
         cumulative_reward += reward
         cumulative_cost += cost
 
+        # Update the learner using the originally selected action, not the
+        # environment's effective/clipped bid. The learner's action set is the
+        # discrete bid set, while outcome["action"] may be clipped by the
+        # remaining budget and therefore may not belong to that discrete set.
         if algorithm_name == "budgeted_ucb":
-            learner.update(action=outcome["action"], reward=reward, cost=cost)
+            learner.update(action=action, reward=reward, cost=cost)
         else:
-            learner.update(action=outcome["action"], reward=reward)
+            learner.update(action=action, reward=reward)
 
         benchmark_reward = float(benchmark_reward_per_round)
         instant_regret = benchmark_reward - reward
@@ -242,8 +246,8 @@ def run_algorithm(
             {
                 "algorithm": algorithm_name,
                 "round": outcome["round"],
-                "action": outcome["action"],
-                "bids": outcome["bids"],
+                "action": action,
+                "bids": action,
                 "wins": outcome["wins"],
                 "reward": reward,
                 "cost": cost,
@@ -255,6 +259,7 @@ def run_algorithm(
                 "cumulative_regret": cumulative_regret,
                 "highest_competing_bid": outcome["info"]["highest_competing_bid"],
                 "done": outcome["done"],
+                "effective_bid": outcome["action"],
             }
         )
 
