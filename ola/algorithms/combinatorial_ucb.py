@@ -29,7 +29,6 @@ TIE_TOLERANCE = 1e-12
 
 class CombinatorialUCB:
     """Combinatorial-UCB learner for Requirement 2.
-
     The learner first tries every campaign-bid arm once. Then, at each round,
     it builds reward UCBs and cost LCBs and picks the feasible super-arm with
     largest optimistic reward under the lecture budget rate rho = B / T.

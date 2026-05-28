@@ -65,8 +65,7 @@ def compute_req2_benchmark(
 ) -> float:
     """Compute the per-round pseudo-regret benchmark for Req 2.
 
-    Implements T * max_{a in S} sum_{i in a} mu(i) from slide 15 of
-    8combinatorialBandits.pdf (Castiglioni), expressed per round. The
+    Implements T * max_{a in S} sum_{i in a} mu(i), expressed per round. The
     maximisation is over feasible super-arms (sets of mutually compatible
     campaigns) under the conflict graph. Competing bids per campaign are
     modelled as independent Gaussians with the configured mean and std,
@@ -242,12 +241,7 @@ def plot_with_uncertainty_band(
     ylabel: str,
     title: str,
 ) -> None:
-    """Plot mean +/- std across seeds with an uncertainty band.
-
-    Local plotter for Req 2 with uncertainty bands. ola/utils/plotting.py does
-    not yet support multi-seed uncertainty bands nor cumulative_cost; this
-    local plotter will be removed once the shared utility is extended.
-
+    """Plot mean +/- std across seeds with an uncertainty band. 
     Seeds that terminate early (done=True before T due to budget depletion) are
     forward-filled with their last observed value up to the horizon so that
     every series has the same length when aggregated by round.
