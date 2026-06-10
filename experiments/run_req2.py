@@ -13,7 +13,7 @@ Do not:
     - Save final results only as screenshots.
 """
 
-from itertools import combinations
+from itertools import combinations, product
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import sys
@@ -76,9 +76,10 @@ def compute_req2_benchmark(
         P(win | b) = CDF_truncnorm(b)
         E[r | b]   = (value - b) * P(win | b)
         E[c | b]   = b * P(win | b)
-    The best super-arm picks, for each campaign in it, the bid that maximises
-    E[r | b]. The reward is scaled down proportionally if its expected cost
-    exceeds the per-round budget share rho = initial_budget / horizon.
+    The benchmark is the best feasible super-arm and bid combination whose
+    expected per-round cost stays within the budget rate
+    rho = initial_budget / horizon (a budget-constrained maximisation, not a
+    post-hoc rescaling), giving a non-negative pseudo-regret benchmark.
     """
     if horizon <= 0:
         raise ValueError("horizon must be positive.")
@@ -118,22 +119,24 @@ def compute_req2_benchmark(
             if is_feasible_campaign_set(combo, conflict_graph):
                 feasible_sets.append(frozenset(combo))
 
-    best_reward = 0.0
-    best_cost = 0.0
-    for feasible_set in feasible_sets:
-        superarm_reward = 0.0
-        superarm_cost = 0.0
-        for i in feasible_set:
-            best_bid_idx = int(np.argmax(expected_reward[i]))
-            superarm_reward += float(expected_reward[i, best_bid_idx])
-            superarm_cost += float(expected_cost[i, best_bid_idx])
-        if superarm_reward > best_reward:
-            best_reward = superarm_reward
-            best_cost = superarm_cost
-
     rho = initial_budget / horizon
-    if best_cost > rho and best_cost > 0.0:
-        best_reward *= rho / best_cost
+
+    # Budget-constrained benchmark: among all feasible super-arms and bid
+    # combinations whose expected per-round cost stays within the rate rho,
+    # pick the one with the largest expected per-round reward. The empty
+    # super-arm (reward 0, cost 0) is always available, so best_reward >= 0.
+    best_reward = 0.0
+    for feasible_set in feasible_sets:
+        sorted_set = sorted(feasible_set)
+        for bid_combo in product(range(len(bids)), repeat=len(sorted_set)):
+            superarm_reward = 0.0
+            superarm_cost = 0.0
+            for position, i in enumerate(sorted_set):
+                b_idx = bid_combo[position]
+                superarm_reward += float(expected_reward[i, b_idx])
+                superarm_cost += float(expected_cost[i, b_idx])
+            if superarm_cost <= rho + 1e-12 and superarm_reward > best_reward:
+                best_reward = superarm_reward
 
     return float(best_reward)
 
