@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.optimize import linprog
 from scipy.stats import truncnorm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -65,9 +66,9 @@ def compute_req2_benchmark(
 ) -> float:
     """Compute the per-round pseudo-regret benchmark for Req 2.
 
-    Implements T * max_{a in S} sum_{i in a} mu(i), expressed per round. The
-    maximisation is over feasible super-arms (sets of mutually compatible
-    campaigns) under the conflict graph. Competing bids per campaign are
+    Returns the per-round optimum OPT^S of the budgeted problem (see below). The
+    feasible super-arms are the sets of mutually compatible campaigns under the
+    conflict graph. Competing bids per campaign are
     modelled as independent Gaussians with the configured mean and std,
     truncated to [0, 1] via scipy.stats.truncnorm; correlation_on_edge is
     accepted for signature symmetry with the environment but is not used here
@@ -76,10 +77,12 @@ def compute_req2_benchmark(
         P(win | b) = CDF_truncnorm(b)
         E[r | b]   = (value - b) * P(win | b)
         E[c | b]   = b * P(win | b)
-    The benchmark is the best feasible super-arm and bid combination whose
-    expected per-round cost stays within the budget rate
-    rho = initial_budget / horizon (a budget-constrained maximisation, not a
-    post-hoc rescaling), giving a non-negative pseudo-regret benchmark.
+    The benchmark is the clairvoyant OPT^S of the budgeted (Bandits-with-
+    Knapsacks) problem: the best, possibly mixed, distribution over feasible
+    super-arms whose expected per-round cost stays within the budget rate
+    rho = initial_budget / horizon, computed via a linear program over the
+    simplex. The mixed-distribution optimum is the tight per-round optimum, so
+    the resulting pseudo-regret is non-negative and monotone non-decreasing.
     """
     if horizon <= 0:
         raise ValueError("horizon must be positive.")
@@ -121,11 +124,16 @@ def compute_req2_benchmark(
 
     rho = initial_budget / horizon
 
-    # Budget-constrained benchmark: among all feasible super-arms and bid
-    # combinations whose expected per-round cost stays within the rate rho,
-    # pick the one with the largest expected per-round reward. The empty
-    # super-arm (reward 0, cost 0) is always available, so best_reward >= 0.
-    best_reward = 0.0
+    # Clairvoyant OPT^S for the budgeted problem (Bandits-with-Knapsacks): the
+    # value of the linear program
+    #     max  sum_a x_a * r_a
+    #     s.t. sum_a x_a * c_a <= rho,   sum_a x_a = 1,   x_a >= 0,
+    # i.e. the best (possibly mixed) distribution over feasible super-arms whose
+    # expected per-round cost respects the budget rate rho = B / T. The empty
+    # super-arm (r = 0, c = 0) is included so the distribution may leave budget
+    # unspent and the LP is always feasible, hence the benchmark is >= 0.
+    candidate_rewards = [0.0]
+    candidate_costs = [0.0]
     for feasible_set in feasible_sets:
         sorted_set = sorted(feasible_set)
         for bid_combo in product(range(len(bids)), repeat=len(sorted_set)):
@@ -135,10 +143,69 @@ def compute_req2_benchmark(
                 b_idx = bid_combo[position]
                 superarm_reward += float(expected_reward[i, b_idx])
                 superarm_cost += float(expected_cost[i, b_idx])
-            if superarm_cost <= rho + 1e-12 and superarm_reward > best_reward:
-                best_reward = superarm_reward
+            candidate_rewards.append(superarm_reward)
+            candidate_costs.append(superarm_cost)
 
-    return float(best_reward)
+    candidate_rewards = np.asarray(candidate_rewards, dtype=float)
+    candidate_costs = np.asarray(candidate_costs, dtype=float)
+    # Same LP as the course `compute_clairvoyant` (08_constrained_problems):
+    # equality constraint sum_a x(a) = 1 over the simplex Delta(A), the budget
+    # rate as the only inequality, and an explicit opt-out arm (candidate 0,
+    # reward 0 cost 0) so the clairvoyant can leave budget unspent.
+    lp_result = linprog(
+        c=-candidate_rewards,
+        A_ub=[candidate_costs],
+        b_ub=[rho],
+        A_eq=[np.ones_like(candidate_costs)],
+        b_eq=[1.0],
+        bounds=(0.0, 1.0),
+        method="highs",
+    )
+    if not lp_result.success:
+        raise RuntimeError(f"Benchmark LP did not converge: {lp_result.message}")
+
+    return float(-lp_result.fun)
+
+
+def build_expected_reward_table(
+    campaign_values: List[float],
+    bid_values: List[float],
+    mean_competing_bids: List[float],
+    std_competing_bids: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Per-(campaign, bid) expected reward table E_r = (value - b) * P(win | b).
+
+    P(win | b) is the truncated-Gaussian marginal CDF on [0, 1], the same model
+    used by the environment and the benchmark. It provides the expected reward
+    mu(a) of an action, as required by the pseudo-regret definition.
+    """
+    bid_grid = np.array(bid_values, dtype=float)
+    number_of_campaigns = len(campaign_values)
+    reward_table = np.zeros((number_of_campaigns, len(bid_grid)))
+    for i in range(number_of_campaigns):
+        mu = float(mean_competing_bids[i])
+        sigma = float(std_competing_bids)
+        lower = (0.0 - mu) / sigma
+        upper = (1.0 - mu) / sigma
+        win_probability = truncnorm.cdf(bid_grid, lower, upper, loc=mu, scale=sigma)
+        reward_table[i] = (float(campaign_values[i]) - bid_grid) * win_probability
+    return bid_grid, reward_table
+
+
+def expected_action_reward(
+    action: Dict[str, Any],
+    bid_grid: np.ndarray,
+    reward_table: np.ndarray,
+) -> float:
+    """Expected reward mu(S_t) of the super-arm chosen at round t under the true
+    model. The empty super-arm (after budget depletion) has expected reward 0,
+    correctly contributing its full benchmark gap to the regret.
+    """
+    total = 0.0
+    for campaign, bid in zip(action["active_campaigns"], action["bids"]):
+        idx = int(np.argmin(np.abs(bid_grid - float(bid))))
+        total += float(reward_table[campaign, idx])
+    return total
 
 
 def run_single_seed(
@@ -163,6 +230,15 @@ def run_single_seed(
     mean_competing_bids = [float(m) for m in environment_config["mean_competing_bids"]]
     std_competing_bids = float(environment_config["std_competing_bids"])
     correlation_on_edge = float(environment_config["correlation_on_edge"])
+
+    # Expected-reward table used to score the pseudo-regret with EXPECTED (not
+    # realized) rewards.
+    bid_grid, reward_table = build_expected_reward_table(
+        campaign_values=campaign_values,
+        bid_values=bid_values,
+        mean_competing_bids=mean_competing_bids,
+        std_competing_bids=std_competing_bids,
+    )
 
     env = MultiCampaignEnvironment(
         number_of_campaigns=number_of_campaigns,
@@ -201,7 +277,11 @@ def run_single_seed(
 
         reward = float(step_result["reward"])
         cost = float(step_result["cost"])
-        instant_regret = float(benchmark_reward_per_round) - reward
+        # Pseudo-regret uses the expected reward of the chosen super-arm (not the
+        # realized one): instant_regret = OPT^S - mu(S_t) >= 0, so the cumulative
+        # pseudo-regret is non-negative and monotone non-decreasing.
+        expected_reward = expected_action_reward(action, bid_grid, reward_table)
+        instant_regret = float(benchmark_reward_per_round) - expected_reward
         cumulative_regret += instant_regret
         # Track wins locally for the summary; not exported in the CSV.
         total_wins += int(sum(step_result["wins"]))
