@@ -255,6 +255,10 @@ def run_single_seed(
     reset_info = env.reset()
     info = reset_info["info"]
 
+    # Exploration coefficient c in the CUCB bonus w = c * sqrt(2 * log(t) / N).
+    # c = 0.5 shrinks the textbook bonus so the learner converges to the best
+    # feasible super-arm within T = 1000 (sublinear regret) instead of exploring
+    # for the whole horizon with 55 arms.
     agent = CombinatorialUCB(
         number_of_campaigns=int(info["number_of_campaigns"]),
         campaign_values=list(info["campaign_values"]),
@@ -263,6 +267,7 @@ def run_single_seed(
         horizon=int(info["horizon"]),
         conflict_edges=conflict_edges,
         random_seed=seed,
+        exploration_coefficient=0.5,
     )
 
     rows: List[Dict[str, Any]] = []
