@@ -33,7 +33,7 @@ class UCB1:
         self.n_actions = len(self.actions)
         self.counts = np.zeros(self.n_actions, dtype=int)
         self.total_rewards = np.zeros(self.n_actions, dtype=float)
-        self.t = 0
+     
 
 
     def select_action(self) -> Any:
@@ -57,4 +57,3 @@ class UCB1:
         index = int(matching_indices[0])
         self.counts[index] += 1
         self.total_rewards[index] += float(reward)
-        self.t += 1
