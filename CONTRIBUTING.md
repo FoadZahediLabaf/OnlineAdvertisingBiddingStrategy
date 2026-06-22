@@ -325,7 +325,7 @@ Examples:
     results/raw/req1_ucb1.csv
     results/raw/req1_budgeted_ucb.csv
     results/raw/req2_combinatorial_ucb.csv
-    results/raw/req3_primal_dual.csv
+    results/processed/req3_on_req4_shared/req3_factorized_raw.csv
     results/raw/req4_sw_cucb.csv
     results/raw/req4_cd_cucb.csv
 

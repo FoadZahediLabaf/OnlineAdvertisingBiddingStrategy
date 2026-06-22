@@ -1,6 +1,0 @@
-setting_id,description,skl_low,skl_high,change_frequency,oracle_block_length,constellation_seed,schedule_seed,sample_seeds,n_change_points,n_windows,min_pairwise_skl,max_pairwise_skl,mean_pairwise_skl
-skl_low_freq_1_100,"low sKL diagnostics, change frequency 1/100",0.1,0.5,0.01,100,1200,12345,"[51200, 51201, 51202]",10,11,0.13659131529863533,0.4997659226129567,0.3646408220371547
-skl_medium_freq_1_100,"medium sKL diagnostics, change frequency 1/100",1.5,3.0,0.01,100,1300,12345,"[52200, 52201, 52202]",10,11,1.6283481515952403,2.9970830280394876,2.2249717351189817
-skl_high_freq_1_100,"high sKL diagnostics, change frequency 1/100",10.0,15.0,0.01,100,1400,12345,"[53200, 53201, 53202]",10,11,10.125467103382716,14.777713848174036,11.60344756564005
-skl_medium_freq_1_200,"medium sKL frequency diagnostics, slow change frequency 1/200",1.5,3.0,0.005,200,1300,22000,"[22500, 22501, 22502]",4,5,1.6283481515952403,2.9970830280394876,2.2249717351189817
-skl_medium_freq_1_50,"medium sKL frequency diagnostics, fast change frequency 1/50",1.5,3.0,0.02,50,1300,24000,"[24500, 24501, 24502]",18,19,1.6283481515952403,2.9970830280394876,2.2249717351189817

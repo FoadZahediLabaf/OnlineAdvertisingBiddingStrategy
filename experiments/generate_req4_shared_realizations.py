@@ -105,21 +105,13 @@ def save_setting(freq_label, change_frequency, oracle_block_length, schedule_see
     sigmas = np.stack([mode[1] for mode in modes])
     np.savez_compressed(setting_dir / "constellation.npz", mus=mus, sigmas=sigmas)
 
-    streams = []
     sample_seeds = []
     change_points, mode_ids = make_schedule(change_frequency, schedule_seed)
     for realization_idx in range(N_REALIZATIONS):
         sample_seed = 100_000 + realization_idx
         stream = sample_stream(modes, change_points, mode_ids, sample_seed)
-        streams.append(stream)
         sample_seeds.append(sample_seed)
         np.save(setting_dir / f"realization_{realization_idx:02d}.npy", stream)
-
-    np.savez_compressed(
-        setting_dir / "streams.npz",
-        streams=np.stack(streams),
-        sample_seeds=np.array(sample_seeds, dtype=int),
-    )
 
     config = {
         "setting_id": setting_id,
