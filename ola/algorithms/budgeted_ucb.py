@@ -23,10 +23,10 @@ import numpy as np
 class BudgetedUCB:
     """LP-based budget-aware UCB learner for Requirement 1.
 
-    In Requirement 1, each action is one possible bid. The learner estimates
-    both reward and cost for each bid, builds reward UCBs and cost LCBs, solves
-    the optimistic budgeted LP over bid distributions, and samples one bid from
-    the resulting distribution.
+    In Requirement 1, each action is one possible bid. The learner first tries
+    each affordable bid once, then estimates both reward and cost for each bid,
+    builds reward UCBs, solves the budgeted LP using empirical cost estimates,
+    and samples one bid from the resulting distribution.
     """
 
     def __init__(
@@ -60,6 +60,10 @@ class BudgetedUCB:
         remaining_rounds = max(1, self.horizon - self.t)
         budget_per_remaining_round = self.budget_left / remaining_rounds
 
+        for index, bid in enumerate(self.actions):
+            if self.counts[index] == 0 and bid <= self.budget_left:
+                return float(bid)
+
         empirical_rewards = self.total_rewards / np.maximum(1, self.counts)
         empirical_costs = self.total_costs / np.maximum(1, self.counts)
         current_round = self.t + 1
@@ -68,11 +72,11 @@ class BudgetedUCB:
         )
 
         reward_ucbs = empirical_rewards + confidence_widths
-        cost_lcbs = np.maximum(0.0, empirical_costs - confidence_widths)
+        cost_estimates = empirical_costs
 
         distribution = self._solve_optimistic_budgeted_lp(
             reward_ucbs=reward_ucbs,
-            cost_lcbs=cost_lcbs,
+            cost_estimates=cost_estimates,
             budget_per_remaining_round=budget_per_remaining_round,
         )
 
@@ -85,14 +89,14 @@ class BudgetedUCB:
     def _solve_optimistic_budgeted_lp(
         self,
         reward_ucbs: np.ndarray,
-        cost_lcbs: np.ndarray,
+        cost_estimates: np.ndarray,
         budget_per_remaining_round: float,
     ) -> np.ndarray:
         """Solve the optimistic LP over bid distributions for Req 1.
 
         The LP is:
             maximize    sum_b gamma_b reward_ucb(b)
-            subject to  sum_b gamma_b cost_lcb(b) <= budget_per_remaining_round
+            subject to  sum_b gamma_b cost_estimate(b) <= budget_per_remaining_round
                         sum_b gamma_b = 1
                         gamma_b >= 0
 
@@ -117,7 +121,7 @@ class BudgetedUCB:
                 best_distribution = best_distribution + candidate_distribution
 
         for index in affordable_indices:
-            cost = float(cost_lcbs[index])
+            cost = float(cost_estimates[index])
             if cost <= budget_per_remaining_round:
                 objective = float(reward_ucbs[index])
                 candidate_distribution = np.zeros(self.n_actions, dtype=float)
@@ -126,8 +130,8 @@ class BudgetedUCB:
 
         for left_position, left_index in enumerate(affordable_indices):
             for right_index in affordable_indices[left_position + 1:]:
-                cost_left = float(cost_lcbs[left_index])
-                cost_right = float(cost_lcbs[right_index])
+                cost_left = float(cost_estimates[left_index])
+                cost_right = float(cost_estimates[right_index])
 
                 if cost_left == cost_right:
                     continue
