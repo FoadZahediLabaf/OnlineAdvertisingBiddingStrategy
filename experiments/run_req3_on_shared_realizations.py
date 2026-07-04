@@ -21,7 +21,7 @@ from ola.algorithms.primal_dual import FactorizedPrimalDualHedgeLearner
 INPUT_DIR = PROJECT_ROOT / "results" / "processed" / "req4_shared_realizations"
 OUTPUT_DIR = PROJECT_ROOT / "results" / "processed" / "req3_on_req4_shared"
 T = 3000
-N = 10
+N = 5
 BUDGET = 10000.0
 BID_SET = np.linspace(0.0, 1.0, 11)
 VALUES = np.ones(N)
@@ -37,6 +37,8 @@ def run_factorized_primal_dual_trial(
     bid_set,
     values,
     budget,
+    allowed_campaign_sets=None,
+    conflict_edges=None,
     environment="precomputed",
     environment_kwargs=None,
 ):
@@ -55,6 +57,8 @@ def run_factorized_primal_dual_trial(
         initial_budget=budget,
         horizon=T,
         learning_rate=0.2,
+        allowed_campaign_sets=allowed_campaign_sets,
+        conflict_edges=conflict_edges,
         random_seed=learner_seed,
     )
     utilities = np.zeros(T)
@@ -101,6 +105,8 @@ def main():
                 bid_set=BID_SET,
                 values=VALUES,
                 budget=BUDGET,
+                allowed_campaign_sets=config.get("allowed_campaign_sets"),
+                conflict_edges=config.get("conflict_edges"),
                 environment_kwargs={"path": matrix_path},
             )
             oracle = solve_piecewise_static_oracle(

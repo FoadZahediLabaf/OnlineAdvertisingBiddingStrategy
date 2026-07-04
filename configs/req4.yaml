@@ -21,8 +21,8 @@ experiment:
   horizon: 1000
 
 campaigns:
-  number_of_campaigns: 3
-  values: [1.0, 1.0, 1.0]
+  number_of_campaigns: 5
+  values: [1.0, 1.0, 1.0, 1.0, 1.0]
   initial_budget: 500.0
 
 bids:
@@ -31,7 +31,9 @@ bids:
 
 conflict_graph:
   # Each pair means the two campaigns cannot be selected together.
-  edges: []
+  # Five-cycle: feasible non-singleton super-arms are exactly the five
+  # non-adjacent pairs.
+  edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]]
 
 environment:
   # Rounds are partitioned into intervals.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import combinations
 from typing import Iterable
 
 import numpy as np
@@ -20,6 +21,11 @@ def compute_utility_and_cost(
     return utility, cost, wins.astype(int)
 
 
+def _campaign_set_is_feasible(campaign_set: tuple[int, ...], conflict_edges) -> bool:
+    selected = set(campaign_set)
+    return all(first not in selected or second not in selected for first, second in conflict_edges)
+
+
 class FactorizedPrimalDualHedgeLearner:
     """Primal-dual Hedge without enumerating the ``11^N`` joint actions."""
 
@@ -31,12 +37,18 @@ class FactorizedPrimalDualHedgeLearner:
         horizon: int,
         learning_rate: float = 0.2,
         dual_learning_rate: float | None = None,
+        allowed_campaign_sets: Iterable[Iterable[int]] | None = None,
+        conflict_edges: Iterable[Iterable[int]] | None = None,
         random_seed: int = 0,
     ) -> None:
         self.bid_set = np.asarray(list(bid_set), dtype=float)
         self.values = np.asarray(list(values), dtype=float)
         self.number_of_campaigns = self.values.size
         self.number_of_bids = self.bid_set.size
+        self.conflict_edges = [tuple(edge) for edge in (conflict_edges or [])]
+        self.allowed_campaign_sets = self._normalise_allowed_campaign_sets(
+            allowed_campaign_sets
+        )
         self.budget_left = float(initial_budget)
         self.rho = float(initial_budget) / int(horizon)
         self.learning_rate = float(learning_rate)
@@ -50,12 +62,46 @@ class FactorizedPrimalDualHedgeLearner:
         self.dual_variable = 0.0
         self.dual_variable_max = 1.0 / self.rho
 
+    def _normalise_allowed_campaign_sets(
+        self,
+        allowed_campaign_sets: Iterable[Iterable[int]] | None,
+    ) -> list[tuple[int, ...]]:
+        if allowed_campaign_sets is None:
+            if not self.conflict_edges:
+                return [tuple(range(self.number_of_campaigns))]
+            generated = []
+            for size in (1, 2):
+                for campaign_set in combinations(range(self.number_of_campaigns), size):
+                    if _campaign_set_is_feasible(campaign_set, self.conflict_edges):
+                        generated.append(campaign_set)
+            return generated
+
+        normalised = []
+        for campaign_set in allowed_campaign_sets:
+            candidate = tuple(sorted(int(campaign) for campaign in campaign_set))
+            if not candidate:
+                continue
+            if any(campaign < 0 or campaign >= self.number_of_campaigns for campaign in candidate):
+                raise ValueError(f"Invalid campaign set {campaign_set}.")
+            if len(set(candidate)) != len(candidate):
+                raise ValueError(f"Campaign set {campaign_set} contains duplicates.")
+            if not _campaign_set_is_feasible(candidate, self.conflict_edges):
+                raise ValueError(f"Campaign set {campaign_set} violates conflict_edges.")
+            normalised.append(candidate)
+
+        if not normalised:
+            raise ValueError("allowed_campaign_sets must contain at least one non-empty set.")
+        return normalised
+
     def select_action(self) -> np.ndarray:
         """Sample one bid per campaign under worst-case budget feasibility."""
 
         action = np.zeros(self.number_of_campaigns)
         worst_case_budget_left = self.budget_left
-        for campaign_index in self.rng.permutation(self.number_of_campaigns):
+        campaign_set = self.allowed_campaign_sets[
+            int(self.rng.integers(len(self.allowed_campaign_sets)))
+        ]
+        for campaign_index in self.rng.permutation(campaign_set):
             feasible = self.bid_set <= worst_case_budget_left + 1e-12
             scores = np.where(
                 feasible,

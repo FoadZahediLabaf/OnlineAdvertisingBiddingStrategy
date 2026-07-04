@@ -8,7 +8,11 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-import xlsxwriter
+
+try:
+    import xlsxwriter
+except ModuleNotFoundError:
+    xlsxwriter = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,11 +76,12 @@ def export_index(records):
 
 
 def export_csv_files(records):
-    header = ["round"] + [f"campaign_{campaign}" for campaign in range(10)]
     for record in records:
         matrix = np.load(record["matrix_path"])
-        if matrix.shape != (3000, 10):
+        expected_shape = (record["rows"], record["campaigns"])
+        if matrix.shape != expected_shape:
             raise ValueError(f"Unexpected shape {matrix.shape} in {record['matrix_path']}")
+        header = ["round"] + [f"campaign_{campaign}" for campaign in range(record["campaigns"])]
         output = CSV_DIR / f"{record['sheet_name']}.csv"
         with output.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.writer(handle)
@@ -86,6 +91,12 @@ def export_csv_files(records):
 
 
 def export_excel(records):
+    if xlsxwriter is None:
+        if XLSX_PATH.exists():
+            XLSX_PATH.unlink()
+        print("xlsxwriter is not installed; skipped Excel export.")
+        return
+
     workbook = xlsxwriter.Workbook(XLSX_PATH, {"constant_memory": True})
     header_format = workbook.add_format(
         {"bold": True, "font_color": "#FFFFFF", "bg_color": "#2F6DF6", "border": 1}
@@ -105,9 +116,9 @@ def export_excel(records):
     index.set_column(6, 11, 16)
     index.set_column(12, 12, 72)
 
-    headers = ["round"] + [f"campaign_{campaign}" for campaign in range(10)]
     for record in records:
         matrix = np.load(record["matrix_path"])
+        headers = ["round"] + [f"campaign_{campaign}" for campaign in range(record["campaigns"])]
         worksheet = workbook.add_worksheet(record["sheet_name"])
         worksheet.write_row(0, 0, headers, header_format)
         for round_index, values in enumerate(matrix, start=1):
@@ -115,9 +126,9 @@ def export_excel(records):
             for campaign, value in enumerate(values, start=1):
                 worksheet.write_number(round_index, campaign, float(value), value_format)
         worksheet.freeze_panes(1, 1)
-        worksheet.autofilter(0, 0, 3000, 10)
+        worksheet.autofilter(0, 0, record["rows"], record["campaigns"])
         worksheet.set_column(0, 0, 10)
-        worksheet.set_column(1, 10, 19)
+        worksheet.set_column(1, record["campaigns"], 19)
     workbook.close()
 
 

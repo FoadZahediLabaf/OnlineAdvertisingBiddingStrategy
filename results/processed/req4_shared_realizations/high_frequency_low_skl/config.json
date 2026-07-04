@@ -1,8 +1,67 @@
 {
   "setting_id": "high_frequency_low_skl",
   "horizon": 3000,
-  "number_of_campaigns": 10,
+  "number_of_campaigns": 5,
   "budget": 10000,
+  "conflict_edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      0
+    ]
+  ],
+  "allowed_campaign_sets": [
+    [
+      0
+    ],
+    [
+      1
+    ],
+    [
+      2
+    ],
+    [
+      3
+    ],
+    [
+      4
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      2,
+      4
+    ]
+  ],
   "bid_grid": [
     0.0,
     0.1,

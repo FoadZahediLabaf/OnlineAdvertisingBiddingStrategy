@@ -16,27 +16,39 @@ experiment:
   name: req2_multi_campaign_stochastic
   random_seed: 42
   horizon: 1000
+  # Seeds used to average results across multiple environment realizations.
+  # The plots produced by run_req2.py show mean +/- std over these seeds.
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 
 campaigns:
-  number_of_campaigns: 3
-  values: [1.0, 1.0, 1.0]
-  initial_budget: 500.0
+  number_of_campaigns: 5
+  values: [1.0, 1.0, 1.0, 1.0, 1.0]
+  initial_budget: 400.0
 
 bids:
-  # Shared discrete bid set used for each campaign.
+  # Discrete bid set shared across all campaigns. Bids passed to step()
+  # must belong to this set (within a small floating-point tolerance).
   values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 conflict_graph:
   # Each pair means the two campaigns cannot be selected together.
-  edges: []
+  # Five-cycle: feasible non-singleton super-arms are exactly the five
+  # non-adjacent pairs.
+  edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]]
 
 environment:
-  # Placeholder distribution for the joint highest competing bids.
-  # Luigi should replace or extend this when implementing Req 2.
-  competing_bid_distribution: independent_uniform
-  min_competing_bid: 0.0
-  max_competing_bid: 1.0
+  # Joint distribution over highest competing bids: multivariate Gaussian
+  # clipped to [0, 1]. Mean 0.5 reflects the standard equilibrium bid in a
+  # first-price auction with value 1; std 0.1 keeps the signal stable
+  # enough for the CUCB to learn.
+  # Covariance structure is built automatically from the conflict graph:
+  # campaigns connected by an edge share advertisers, so their competing
+  # bids are positively correlated (correlation_on_edge * variance).
+  # The covariance matrix is regularized to be positive semidefinite.
+  mean_competing_bids: [0.5, 0.5, 0.5, 0.5, 0.5]
+  std_competing_bids: 0.1
+  correlation_on_edge: 0.8
 
 outputs:
   results_dir: results
-  combinatorial_ucb_results_file: results/req2_combinatorial_ucb.csv
+  combinatorial_ucb_results_file: results/raw/req2_combinatorial_ucb.csv
