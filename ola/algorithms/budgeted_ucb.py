@@ -62,8 +62,9 @@ class BudgetedUCB:
 
         empirical_rewards = self.total_rewards / np.maximum(1, self.counts)
         empirical_costs = self.total_costs / np.maximum(1, self.counts)
+        current_round = self.t + 1
         confidence_widths = np.sqrt(
-            2 * np.log(self.horizon) / np.maximum(1, self.counts)
+            2 * np.log(current_round) / np.maximum(1, self.counts)
         )
 
         reward_ucbs = empirical_rewards + confidence_widths

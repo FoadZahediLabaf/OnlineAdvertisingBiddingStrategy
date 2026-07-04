@@ -45,9 +45,10 @@ Implement and test:
 
 Implement and test:
 
-- A highly non-stationary or adversarial environment
-- A primal-dual bidding method with budget constraint
-- A full-feedback setting where the highest competing bid is observed
+- A factorized primal-dual bidding method with a hard budget constraint
+- A shared 3000-round, 10-campaign non-stationary market matrix protocol
+- Nine sKL/frequency settings with 10 saved realizations per setting
+- An exact piecewise-static hindsight oracle and cumulative regret
 
 ### Requirement 4: Slightly Non-Stationary Environment
 
@@ -73,7 +74,6 @@ The repository must stay clean and organized.
     │   │   ├── base.py
     │   │   ├── single_campaign.py
     │   │   ├── multi_campaign.py
-    │   │   ├── adversarial.py
     │   │   └── non_stationary.py
     │   ├── algorithms/
     │   │   ├── ucb1.py
@@ -89,12 +89,13 @@ The repository must stay clean and organized.
     ├── experiments/
     │   ├── run_req1.py
     │   ├── run_req2.py
-    │   ├── run_req3.py
+    │   ├── run_req3_on_shared_realizations.py
+    │   ├── generate_req4_shared_realizations.py
+    │   ├── export_shared_matrix_tables.py
     │   └── run_req4.py
     └── configs/
         ├── req1.yaml
         ├── req2.yaml
-        ├── req3.yaml
         └── req4.yaml
 
 ---
@@ -416,7 +417,7 @@ Examples:
     results/raw/req1_ucb1.csv
     results/raw/req1_budgeted_ucb.csv
     results/raw/req2_combinatorial_ucb.csv
-    results/raw/req3_primal_dual.csv
+    results/processed/req3_on_req4_shared/req3_factorized_raw.csv
     results/raw/req4_sw_cucb.csv
     results/raw/req4_cd_cucb.csv
 
@@ -509,7 +510,7 @@ Use the file names below unless the group agrees on a different name.
 | Foad | Project co-lead, repository integration, Requirement 1, code reviewer for the other requirements, and final 3-way comparison: `README.md`, `CONTRIBUTING.md`, `notebooks/req1_single_campaign.ipynb`, `requirements.txt`, `.gitignore`, `ola/__init__.py`, `ola/environments/__init__.py`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/__init__.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `experiments/run_req1.py`, `configs/req1.yaml`. Foad can review Luigi's, Mengyao's, and Alessandro's code, give consultation, and make code changes only when needed and with the relevant owner's approval. |
 | Simone | Project lead, theory, coordination, master slides, and Requirement 4 theory support: `slides/notes.md`, `slides/figures/*`, final presentation material, shared report material, and theory notes for Requirement 4. Simone can also edit Req 3 and Req 4 code when helping Mengyao and Alessandro |
 | Luigi | Requirement 2 only: `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `notebooks/req2_multi_campaign.ipynb` |
-| Mengyao | Requirement 3 only: `ola/environments/adversarial.py`, `ola/algorithms/primal_dual.py`, `experiments/run_req3.py`, `configs/req3.yaml`, `notebooks/req3_primal_dual.ipynb` |
+| Mengyao | Requirement 3 only: `ola/algorithms/primal_dual.py`, `experiments/run_req3_on_shared_realizations.py`, `experiments/piecewise_static_oracle.py`, `experiments/generate_req4_shared_realizations.py`, `notebooks/req3_primal_dual.ipynb`, and Req3 result/slide artifacts |
 | Alessandro | Requirement 4 code only: `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `notebooks/req4_non_stationary.ipynb` |
 | Team | Final review, dry runs, Q&A preparation, and shared discussion of results. Do not edit code files unless the file owner agrees. |
 
