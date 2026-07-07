@@ -26,7 +26,7 @@ from ola.utils.constellation.constellation import generate_constellation_gd_rota
 
 T = 3000
 N = 5
-BUDGET = 10000
+BUDGET = 2500
 NUM_MODES = 3
 MAX_STD = 0.1
 CONSTELLATION_SEED = 42
@@ -38,18 +38,6 @@ CONFLICT_EDGES = [
     [2, 3],
     [3, 4],
     [4, 0],
-]
-ALLOWED_CAMPAIGN_SETS = [
-    [0],
-    [1],
-    [2],
-    [3],
-    [4],
-    [0, 2],
-    [0, 3],
-    [1, 3],
-    [1, 4],
-    [2, 4],
 ]
 
 SKL_SETTINGS = [
@@ -156,7 +144,18 @@ def save_setting(freq_label, change_frequency, oracle_block_length, schedule_see
         "number_of_campaigns": N,
         "budget": BUDGET,
         "conflict_edges": CONFLICT_EDGES,
-        "allowed_campaign_sets": ALLOWED_CAMPAIGN_SETS,
+        "allowed_campaign_sets": [
+            [0],
+            [1],
+            [2],
+            [3],
+            [4],
+            [0, 2],
+            [0, 3],
+            [1, 3],
+            [1, 4],
+            [2, 4],
+        ],
         "bid_grid": [round(x, 1) for x in np.linspace(0.0, 1.0, 11)],
         "target_skl": target_skl,
         "skl_label": skl_label,

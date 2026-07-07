@@ -2,7 +2,7 @@
   "setting_id": "medium_frequency_low_skl",
   "horizon": 3000,
   "number_of_campaigns": 5,
-  "budget": 10000,
+  "budget": 2500,
   "conflict_edges": [
     [
       0,

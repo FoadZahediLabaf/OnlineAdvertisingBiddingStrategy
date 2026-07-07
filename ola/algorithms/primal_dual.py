@@ -27,7 +27,12 @@ def _campaign_set_is_feasible(campaign_set: tuple[int, ...], conflict_edges) -> 
 
 
 class FactorizedPrimalDualHedgeLearner:
-    """Primal-dual Hedge without enumerating the ``11^N`` joint actions."""
+    """Primal-dual Hedge without enumerating the ``11^N`` joint actions.
+
+    The learner keeps one Hedge distribution over feasible campaign sets and
+    one Hedge distribution per campaign over the shared bid grid. This keeps
+    the action model compact while still learning which super-arm to play.
+    """
 
     def __init__(
         self,
@@ -59,6 +64,7 @@ class FactorizedPrimalDualHedgeLearner:
         )
         self.rng = np.random.default_rng(random_seed)
         self.arm_weights = np.ones((self.number_of_campaigns, self.number_of_bids))
+        self.superarm_weights = np.ones(len(self.allowed_campaign_sets), dtype=float)
         self.dual_variable = 0.0
         self.dual_variable_max = 1.0 / self.rho
 
@@ -93,24 +99,38 @@ class FactorizedPrimalDualHedgeLearner:
             raise ValueError("allowed_campaign_sets must contain at least one non-empty set.")
         return normalised
 
+    def _superarm_distribution(self) -> np.ndarray:
+        weights = np.maximum(self.superarm_weights, 1e-300)
+        total = weights.sum()
+        if total <= 0.0 or not np.isfinite(total):
+            weights = np.ones_like(weights)
+            total = weights.sum()
+        return weights / total
+
+    def _campaign_distribution(self, campaign_index: int, budget_left: float) -> np.ndarray:
+        feasible = self.bid_set <= budget_left + 1e-12
+        if not np.any(feasible):
+            feasible = np.isclose(self.bid_set, 0.0)
+        weights = np.maximum(self.arm_weights[campaign_index], 1e-300)
+        scores = np.where(feasible, weights, 0.0)
+        total = scores.sum()
+        if total <= 0.0 or not np.isfinite(total):
+            scores = feasible.astype(float)
+            total = scores.sum()
+        return scores / total
+
     def select_action(self) -> np.ndarray:
         """Sample one bid per campaign under worst-case budget feasibility."""
 
         action = np.zeros(self.number_of_campaigns)
         worst_case_budget_left = self.budget_left
-        campaign_set = self.allowed_campaign_sets[
-            int(self.rng.integers(len(self.allowed_campaign_sets)))
-        ]
+        superarm_probabilities = self._superarm_distribution()
+        superarm_index = int(
+            self.rng.choice(len(self.allowed_campaign_sets), p=superarm_probabilities)
+        )
+        campaign_set = self.allowed_campaign_sets[superarm_index]
         for campaign_index in self.rng.permutation(campaign_set):
-            feasible = self.bid_set <= worst_case_budget_left + 1e-12
-            scores = np.where(
-                feasible,
-                np.maximum(self.arm_weights[campaign_index], 1e-300),
-                0.0,
-            )
-            if scores.sum() <= 0.0:
-                scores = feasible.astype(float)
-            probabilities = scores / scores.sum()
+            probabilities = self._campaign_distribution(campaign_index, worst_case_budget_left)
             bid = float(
                 self.bid_set[self.rng.choice(self.number_of_bids, p=probabilities)]
             )
@@ -132,10 +152,12 @@ class FactorizedPrimalDualHedgeLearner:
         )
         self.budget_left = max(0.0, self.budget_left - cost)
 
+        arm_rewards = np.zeros((self.number_of_campaigns, self.number_of_bids), dtype=float)
         for campaign_index in range(self.number_of_campaigns):
             wins = self.bid_set >= highest_competing_bids[campaign_index]
             scores = (self.values[campaign_index] - self.bid_set) * wins
             scores -= self.dual_variable * self.bid_set * wins
+            arm_rewards[campaign_index] = scores
             span = scores.max() - scores.min()
             normalized = (
                 (scores - scores.min()) / span if span > 0 else np.zeros_like(scores)
@@ -143,6 +165,23 @@ class FactorizedPrimalDualHedgeLearner:
             self.arm_weights[campaign_index] *= np.exp(
                 self.learning_rate * normalized
             )
+
+        superarm_rewards = np.array(
+            [
+                sum(float(np.max(arm_rewards[campaign_index])) for campaign_index in campaign_set)
+                for campaign_set in self.allowed_campaign_sets
+            ],
+            dtype=float,
+        )
+        min_superarm_reward = np.min(superarm_rewards)
+        max_superarm_reward = np.max(superarm_rewards)
+        normalized_superarm_rewards = (
+            (superarm_rewards - min_superarm_reward)
+            / (max_superarm_reward - min_superarm_reward)
+            if max_superarm_reward > min_superarm_reward
+            else np.zeros_like(superarm_rewards)
+        )
+        self.superarm_weights *= np.exp(self.learning_rate * normalized_superarm_rewards)
 
         self.dual_variable += self.dual_learning_rate * (cost - self.rho)
         self.dual_variable = float(

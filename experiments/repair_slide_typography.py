@@ -1,4 +1,4 @@
-﻿"""Repair Req3 slide layout and apply real math sub/superscripts."""
+"""Repair Req3 slide layout and apply real math sub/superscripts."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def rebuild_notation(slide):
         (sym("b", "t", size=20), "bid vector selected at round t", BLUE),
         (sym("m", "t", size=20), "highest-competing-bid vector at round t", GREEN),
         (sym("v", "i", size=20), "campaign i value; normalized to 1", BLUE),
-        (sym("Î»", "t", size=20), "dual price controlling expenditure at round t", GREEN),
+        (sym("λ", "t", size=20), "dual price controlling expenditure at round t", GREEN),
     ]
     for idx, (symbol, description, accent) in enumerate(entries):
         row, col = divmod(idx, 2)
@@ -150,21 +150,21 @@ def rebuild_auction(slide):
     add_text(slide, 1.05, 2.42, 2.75, 0.43, "One bid for every campaign.", 13)
     add_rich(slide, 4.85, 2.0, 2.75, 0.38, sym("m", "t", size=20) + [" = ("] + sym("m", "t,1", size=20) + [", ..., "] + sym("m", "t,N", size=20) + [")"], 20, NAVY, True)
     add_text(slide, 4.85, 2.42, 2.8, 0.43, "Highest competing bids.", 13)
-    add_rich(slide, 8.65, 1.98, 2.85, 0.42, sym("b", "t,i", size=20) + [" â‰¥ "] + sym("m", "t,i", size=20), 20, NAVY, True)
+    add_rich(slide, 8.65, 1.98, 2.85, 0.42, sym("b", "t,i", size=20) + [" ≥ "] + sym("m", "t,i", size=20), 20, NAVY, True)
     add_text(slide, 8.65, 2.42, 2.75, 0.43, "Campaign i is won iff this holds.", 13)
 
     accent_card(slide, 0.95, 3.55, 5.55, 1.65, PURPLE, "Utility")
-    utility = sym("u", "t", size=18) + ["("] + sym("b", "t", size=18) + [") = Î£"] + sym("", "i=1", superscript="N", size=18) + [" ("] + sym("v", "i", size=18) + [" âˆ’ "] + sym("b", "t,i", size=18) + [") 1{"] + sym("b", "t,i", size=18) + [" â‰¥ "] + sym("m", "t,i", size=18) + ["}"]
+    utility = sym("u", "t", size=18) + ["("] + sym("b", "t", size=18) + [") = Σ"] + sym("", "i=1", superscript="N", size=18) + [" ("] + sym("v", "i", size=18) + [" − "] + sym("b", "t,i", size=18) + [") 1{"] + sym("b", "t,i", size=18) + [" ≥ "] + sym("m", "t,i", size=18) + ["}"]
     add_rich(slide, 1.28, 4.08, 4.85, 0.48, utility, 18, NAVY)
     add_text(slide, 1.28, 4.58, 4.85, 0.35, "Value minus payment, summed over won auctions.", 12, False, MUTED)
 
     accent_card(slide, 6.82, 3.55, 5.55, 1.65, RED, "Cost")
-    cost = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") = Î£"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18) + [" 1{"] + sym("b", "t,i", size=18) + [" â‰¥ "] + sym("m", "t,i", size=18) + ["}"]
+    cost = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") = Σ"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18) + [" 1{"] + sym("b", "t,i", size=18) + [" ≥ "] + sym("m", "t,i", size=18) + ["}"]
     add_rich(slide, 7.15, 4.08, 4.85, 0.48, cost, 18, NAVY)
     add_text(slide, 7.15, 4.58, 4.85, 0.35, "Only won auctions consume budget.", 12, False, MUTED)
 
     add_shape(slide, 0.95, 5.72, 11.42, 0.82, PALE, "D9E2EC")
-    bound = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") â‰¤ Î£"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18)
+    bound = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") ≤ Σ"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18)
     add_rich(slide, 1.25, 5.91, 3.25, 0.38, bound, 18, NAVY, True)
     add_text(slide, 4.55, 5.85, 7.35, 0.47, "This worst-case upper bound enables a deterministic budget guarantee.", 14, True, BLUE)
 
@@ -182,19 +182,19 @@ def rebuild_environment(slide):
     for x, y, accent, heading in cards:
         accent_card(slide, x, y, 5.55, 1.48, accent, heading)
 
-    mode_formula = sym("z", "t", size=18) + [" âˆˆ {0, 1, 2},    "] + sym("m", "t", size=18) + [" ~ N("] + sym("Î¼", "zâ‚œ", size=18) + [", "] + sym("Î£", "zâ‚œ", size=18) + [")"]
+    mode_formula = sym("z", "t", size=18) + [" ∈ {0, 1, 2},    "] + sym("m", "t", size=18) + [" ~ N("] + sym("μ", "zₜ", size=18) + [", "] + sym("Σ", "zₜ", size=18) + [")"]
     add_rich(slide, 1.08, 1.96, 4.75, 0.4, mode_formula, 18, NAVY, True)
-    add_text(slide, 1.08, 2.38, 4.75, 0.3, "Each mode is a 10-dimensional distribution of competing bids.", 11, False, MUTED)
+    add_text(slide, 1.08, 2.38, 4.75, 0.3, "Each mode is a 5-dimensional distribution of competing bids.", 11, False, MUTED)
 
-    skl_formula = ["sKL("] + sym("P", "a", size=18) + [", "] + sym("P", "b", size=18) + [") âˆˆ {20, 200, 2000}"]
+    skl_formula = ["sKL("] + sym("P", "a", size=18) + [", "] + sym("P", "b", size=18) + [") ∈ {20, 200, 2000}"]
     add_rich(slide, 7.12, 1.96, 4.72, 0.4, skl_formula, 18, NAVY, True)
     add_text(slide, 7.12, 2.38, 4.72, 0.3, "Larger sKL means a more visible distribution shift.", 11, False, MUTED)
 
-    switch_formula = ["Pr("] + sym("z", "t", size=18) + [" â‰  "] + sym("z", "tâˆ’1", size=18) + [") = p"]
+    switch_formula = ["Pr("] + sym("z", "t", size=18) + [" ≠ "] + sym("z", "t−1", size=18) + [") = p"]
     add_rich(slide, 1.08, 3.82, 4.75, 0.4, switch_formula, 18, NAVY, True)
     add_text(slide, 1.08, 4.24, 4.75, 0.3, "p = 1/100, 1/50, or 1/25; larger p gives more change points.", 11, False, MUTED)
 
-    matrix_formula = ["M = ["] + sym("m", "1", size=18) + [", ..., "] + sym("m", "T", size=18) + ["]"] + sym("", superscript="âŠ¤", size=18) + [" âˆˆ [0, 1]"] + sym("", superscript="3000Ã—5", size=18)
+    matrix_formula = ["M = ["] + sym("m", "1", size=18) + [", ..., "] + sym("m", "T", size=18) + ["]"] + sym("", superscript="⊤", size=18) + [" ∈ [0, 1]"] + sym("", superscript="3000×5", size=18)
     add_rich(slide, 7.12, 3.82, 4.72, 0.4, matrix_formula, 18, NAVY, True)
     add_text(slide, 7.12, 4.24, 4.72, 0.3, "Once sampled, this exact matrix is reused by every algorithm.", 11, False, MUTED)
 
@@ -214,26 +214,26 @@ def rebuild_environment(slide):
 
 def rebuild_policy(slide):
     clear_slide(slide)
-    title(slide, 5, "Factorized primal-dual bid policy", "One Hedge distribution per campaign; no enumeration of the full joint action space.")
+    title(slide, 5, "Factorized primal-dual bid policy", "One Hedge distribution over feasible super-arms plus one bid distribution per campaign.")
     steps = [
-        (0.78, BLUE, "1. Maintain weights"),
-        (4.55, PURPLE, "2. Sample per campaign"),
-        (8.32, GREEN, "3. Assemble the vector"),
+        (0.78, BLUE, "1. Learn super-arms"),
+        (4.55, PURPLE, "2. Sample active bids"),
+        (8.32, GREEN, "3. Build feasible action"),
     ]
     for x, accent, heading in steps:
         accent_card(slide, x, 1.65, 3.25, 2.25, accent, heading)
-    add_rich(slide, 1.08, 2.25, 2.7, 0.45, sym("w", "t,i", size=22) + ["(g),  g âˆˆ G"], 22, NAVY, True)
-    add_text(slide, 1.08, 2.78, 2.62, 0.65, "Scores every bid g for campaign i.", 13)
-    add_rich(slide, 4.85, 2.25, 2.7, 0.45, sym("b", "t,i", size=22) + [" ~ "] + sym("p", "t,i", size=22), 22, NAVY, True)
-    add_text(slide, 4.85, 2.78, 2.62, 0.65, "Draw one affordable bid per campaign.", 13)
-    add_rich(slide, 8.62, 2.25, 2.7, 0.45, sym("b", "t", size=22) + [" = ("] + sym("b", "t,1", size=22) + [", ..., "] + sym("b", "t,N", size=22) + [")"], 22, NAVY, True)
-    add_text(slide, 8.62, 2.78, 2.62, 0.65, "The complete 10-dimensional action.", 13)
+    add_rich(slide, 1.08, 2.25, 2.7, 0.45, sym("S", "t", size=22) + [" ~ "] + sym("q", "t", size=22), 22, NAVY, True)
+    add_text(slide, 1.08, 2.78, 2.62, 0.65, "Choose one feasible singleton or non-adjacent pair.", 13)
+    add_rich(slide, 4.85, 2.25, 2.95, 0.45, sym("b", "t,i", size=20) + [" ~ "] + sym("p", "t,i", size=20) + [", i in "] + sym("S", "t", size=20), 20, NAVY, True)
+    add_text(slide, 4.85, 2.78, 2.62, 0.65, "Draw affordable bids only for active campaigns.", 13)
+    add_rich(slide, 8.62, 2.25, 2.95, 0.45, sym("b", "t,i", size=20) + [" = 0 for i not in "] + sym("S", "t", size=20), 20, NAVY, True)
+    add_text(slide, 8.62, 2.78, 2.62, 0.65, "Inactive or conflicting campaigns are not served.", 13)
 
     add_shape(slide, 0.9, 4.45, 11.55, 1.55, PALE, "D9E2EC")
-    add_text(slide, 1.2, 4.7, 2.35, 0.35, "Current setup", 14, True, TEAL)
-    add_text(slide, 1.2, 5.08, 3.0, 0.48, "5-cycle conflicts: five single campaigns and five non-adjacent pairs remain available.", 13)
-    add_text(slide, 4.55, 4.7, 2.6, 0.35, "Computational benefit", 14, True, PURPLE)
-    add_text(slide, 4.55, 5.08, 3.05, 0.48, "10 Ã— 11 arm weights instead of 11^10 joint actions.", 13)
+    add_text(slide, 1.2, 4.66, 2.35, 0.35, "Super-arm weights", 14, True, TEAL)
+    add_text(slide, 1.2, 5.02, 3.0, 0.6, "Hedge increases weight on campaign sets with higher penalized payoff.", 12)
+    add_text(slide, 4.55, 4.7, 2.6, 0.35, "Bid weights", 14, True, PURPLE)
+    add_text(slide, 4.55, 5.08, 3.05, 0.48, "Each campaign keeps its own distribution over the 11 bid levels.", 12)
     add_text(slide, 8.15, 4.7, 2.4, 0.35, "Budget safety", 14, True, GREEN)
     add_text(slide, 8.15, 5.08, 3.55, 0.48, "Sampling is filtered by the remaining budget.", 13)
 
@@ -252,20 +252,31 @@ def rebuild_update(slide):
 
     hedge = sym("w", "t+1,i", size=17) + ["(g) = "] + sym("w", "t,i", size=17) + ["(g) exp(η "] + sym("ℓ̃", "t,i", size=17) + ["(g))"]
     add_rich(slide, 7.08, 2.08, 4.75, 0.42, hedge, 17, NAVY, True)
-    normalized_score = (
-        sym("ℓ̃", "t,i", size=10.5)
-        + ["(g) = ("]
-        + sym("ℓ", "t,i", size=10.5)
-        + ["(g) - min_h "]
-        + sym("ℓ", "t,i", size=10.5)
-        + ["(h)) / (max_h "]
-        + sym("ℓ", "t,i", size=10.5)
-        + ["(h) - min_h "]
-        + sym("ℓ", "t,i", size=10.5)
-        + ["(h))"]
+    score_bounds = (
+        sym("ℓ", "t,i", "min", size=11.5)
+        + [" = min over h in G "]
+        + sym("ℓ", "t,i", size=11.5)
+        + ["(h),  "]
+        + sym("ℓ", "t,i", "max", size=11.5)
+        + [" = max over h in G "]
+        + sym("ℓ", "t,i", size=11.5)
+        + ["(h)"]
     )
-    add_rich(slide, 7.08, 2.48, 4.95, 0.28, normalized_score, 10.5, NAVY, False)
-    add_text(slide, 7.08, 2.82, 4.7, 0.3, "Normalized high-score bids gain multiplicative weight.", 11, False, MUTED)
+    normalized_score = (
+        sym("ℓ̃", "t,i", size=12.5)
+        + ["(g) = ("]
+        + sym("ℓ", "t,i", size=12.5)
+        + ["(g) - "]
+        + sym("ℓ", "t,i", "min", size=12.5)
+        + [") / ("]
+        + sym("ℓ", "t,i", "max", size=12.5)
+        + [" - "]
+        + sym("ℓ", "t,i", "min", size=12.5)
+        + [")"]
+    )
+    add_rich(slide, 7.08, 2.43, 5.05, 0.26, score_bounds, 11.5, NAVY, False)
+    add_rich(slide, 7.08, 2.72, 4.9, 0.3, normalized_score, 12.5, NAVY, True)
+    add_text(slide, 7.08, 3.02, 4.7, 0.24, "Normalized high-score bids gain multiplicative weight.", 10.5, False, MUTED)
 
     dual = sym("λ", "t+1", size=17) + [" = Π"] + sym("", "[0,1/ρ]", size=17) + ["("] + sym("λ", "t", size=17) + [" + "] + sym("η", "λ", size=17) + ["("] + sym("c", "t", size=17) + [" − ρ))"]
     add_rich(slide, 1.08, 4.23, 4.8, 0.42, dual, 17, NAVY, True)
@@ -286,12 +297,12 @@ def rebuild_budget(slide):
     for x, accent, heading in cards:
         accent_card(slide, x, 1.65, 3.35, 2.15, accent, heading)
 
-    feasible = ["Î£"] + sym("", "i=1", superscript="N", size=20) + [" "] + sym("b", "t,i", size=20) + [" â‰¤ "] + sym("B", "t", size=20)
+    feasible = ["Σ"] + sym("", "i=1", superscript="N", size=20) + [" "] + sym("b", "t,i", size=20) + [" ≤ "] + sym("B", "t", size=20)
     add_rich(slide, 1.03, 2.28, 2.75, 0.45, feasible, 20, NAVY, True)
     affordable = ["Affordable under remaining budget "] + sym("B", "t", size=12) + ["."]
     add_rich(slide, 1.03, 2.8, 2.7, 0.5, affordable, 12, INK)
 
-    safe = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") â‰¤ Î£"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18)
+    safe = sym("c", "t", size=18) + ["("] + sym("b", "t", size=18) + [") ≤ Σ"] + sym("", "i=1", superscript="N", size=18) + [" "] + sym("b", "t,i", size=18)
     add_rich(slide, 4.86, 2.28, 2.78, 0.45, safe, 18, NAVY, True)
     add_text(slide, 4.86, 2.8, 2.72, 0.5, "Only winning bids are actually paid.", 12)
 
@@ -300,7 +311,7 @@ def rebuild_budget(slide):
 
     add_shape(slide, 0.9, 4.35, 11.55, 1.75, PALE, "D9E2EC")
     add_text(slide, 1.22, 4.62, 10.9, 0.35, "Deterministic guarantee", 15, True, NAVY)
-    guarantee = ["Î£"] + sym("", "t=1", superscript="T", size=20) + [" "] + sym("c", "t", size=20) + ["("] + sym("b", "t", size=20) + [") â‰¤ B"]
+    guarantee = ["Σ"] + sym("", "t=1", superscript="T", size=20) + [" "] + sym("c", "t", size=20) + ["("] + sym("b", "t", size=20) + [") ≤ B"]
     add_rich(slide, 1.22, 5.08, 3.0, 0.43, guarantee, 20, BLUE, True)
     add_text(slide, 4.35, 4.98, 7.4, 0.62, "The filter is conservative, but cumulative realized spending can never exceed the total budget.", 14, False, INK)
 
@@ -328,9 +339,9 @@ def rebuild_protocol(slide):
         12,
     )
 
-    matrix = sym("M", superscript="(s,r)", size=18) + [" âˆˆ [0, 1]"] + sym("", superscript="3000Ã—5", size=18)
+    matrix = sym("M", superscript="(s,r)", size=18) + [" ∈ [0, 1]"] + sym("", superscript="3000×5", size=18)
     add_rich(slide, 7.12, 1.89, 4.65, 0.4, matrix, 18, NAVY, True)
-    add_rich(slide, 7.12, 2.34, 4.7, 0.38, ["row "] + sym("t", size=12) + [" = one round; column "] + sym("i", size=12) + [" = one campaign"], 12, MUTED)
+    add_rich(slide, 7.12, 2.34, 4.7, 0.38, ["Rows: rounds "] + sym("t", size=12) + ["    Columns: campaigns "] + sym("i", size=12), 12, MUTED)
 
     add_text(
         slide,
@@ -427,7 +438,7 @@ def refine_generated_slides(prs):
             x, y, w, h = shape.left, shape.top, shape.width, shape.height
             shape._element.getparent().remove(shape._element)
             add_rich(prs.slides[3], x / 914400, y / 914400, w / 914400, h / 914400,
-                     sym("m", "t", size=17) + [" in [0, 1]"] + sym("", superscript="5", size=17),
+                     sym("m", "t", size=17) + [" ∈ [0, 1]"] + sym("", superscript="5", size=17),
                      17, NAVY, True, PP_ALIGN.CENTER)
 
 
@@ -494,4 +505,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

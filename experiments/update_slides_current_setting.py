@@ -12,7 +12,7 @@ import numpy as np
 from matplotlib.ticker import FuncFormatter
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.util import Inches, Pt
 
@@ -29,6 +29,7 @@ from experiments.piecewise_static_oracle import (  # noqa: E402
 )
 
 
+PPTX_TEMPLATE_PATH = ROOT / "slides" / "Requirement3_PrimalDual_template.pptx"
 PPTX_PATH = ROOT / "slides" / "Requirement3_PrimalDual.pptx"
 MATRIX_DIR = ROOT / "results" / "processed" / "req4_shared_realizations"
 RESULT_DIR = ROOT / "results" / "processed" / "req3_on_req4_shared"
@@ -37,7 +38,7 @@ ASSET_DIR = ROOT / "slides" / "generated_current"
 
 T = 3000
 N = 5
-BUDGET = 10000.0
+BUDGET = 2500.0
 BID_SET = np.linspace(0.0, 1.0, 11)
 VALUES = np.ones(N)
 
@@ -97,11 +98,13 @@ def load_and_run_all():
                 environment_kwargs={"path": matrix_path},
             )
             oracle = solve_piecewise_static_oracle(
-                market_matrix,
-                config["change_points"],
-                BID_SET,
-                VALUES,
-                BUDGET,
+                market_matrix=market_matrix,
+                change_points=config["change_points"],
+                bid_set=BID_SET,
+                values=VALUES,
+                budget=BUDGET,
+                allowed_campaign_sets=config.get("allowed_campaign_sets"),
+                conflict_edges=config.get("conflict_edges"),
             )
             regret = oracle["cumulative_utility"] - result["cumulative_utility"]
             compact = {
@@ -249,18 +252,22 @@ def plot_learning_curves(runs):
     rounds = np.arange(1, T + 1)
     colors = {"low_skl": BLUE, "medium_skl": TEAL, "high_skl": ORANGE}
     styles = {"low_frequency": "-", "medium_frequency": "--", "high_frequency": ":"}
+    legend_freq_order = ["high_frequency", "medium_frequency", "low_frequency"]
+    legend_skl_order = ["high_skl", "medium_skl", "low_skl"]
     fig, ax = plt.subplots(figsize=(9, 5))
-    for setting_id, data in sorted(runs.items()):
-        cfg = data["config"]
-        mean = data["cumulative_utility"].mean(axis=0)
-        ax.plot(
-            rounds,
-            mean,
-            color=f"#{colors[cfg['skl_label']]}",
-            linestyle=styles[cfg["frequency_label"]],
-            linewidth=1.8,
-            label=f"{SKL_LABELS[cfg['skl_label']]} / {FREQ_LABELS[cfg['frequency_label']].split(' ')[0]}",
-        )
+    for freq in legend_freq_order:
+        for skl in legend_skl_order:
+            data = runs[f"{freq}_{skl}"]
+            cfg = data["config"]
+            mean = data["cumulative_utility"].mean(axis=0)
+            ax.plot(
+                rounds,
+                mean,
+                color=f"#{colors[cfg['skl_label']]}",
+                linestyle=styles[cfg["frequency_label"]],
+                linewidth=1.8,
+                label=f"{SKL_LABELS[cfg['skl_label']]} / {FREQ_LABELS[cfg['frequency_label']].split(' ')[0]}",
+            )
     ax.set_title("Mean cumulative utility for all current settings", fontweight="bold")
     ax.set_xlabel("Round")
     ax.set_ylabel("Cumulative utility")
@@ -300,7 +307,43 @@ def plot_final_utility_distribution(runs):
     return save_figure(fig, "all_setting_final_utility_distribution.png")
 
 
-def plot_diagnostic(setting_id, data):
+def padded_limits(values, floor_zero=False, extra_values=None):
+    arrays = [np.asarray(value).ravel() for value in values]
+    if extra_values is not None:
+        arrays.append(np.asarray(extra_values).ravel())
+    combined = np.concatenate(arrays)
+    lower = float(np.nanmin(combined))
+    upper = float(np.nanmax(combined))
+    span = upper - lower
+    if span <= 1e-12:
+        span = max(abs(upper), 1.0)
+    lower -= 0.06 * span
+    upper += 0.06 * span
+    if floor_zero:
+        lower = 0.0
+    return lower, upper
+
+
+def build_diagnostic_limits(runs, setting_ids):
+    utility_values = []
+    regret_values = []
+    cost_values = []
+    lambda_values = []
+    for setting_id in setting_ids:
+        data = runs[setting_id]
+        utility_values.extend([data["cumulative_utility"], data["cumulative_oracle_utility"]])
+        regret_values.append(data["regret"])
+        cost_values.extend([data["cumulative_cost"], data["cumulative_oracle_cost"]])
+        lambda_values.append(data["lambda_dual"])
+    return {
+        "utility": padded_limits(utility_values, floor_zero=True),
+        "regret": padded_limits(regret_values, extra_values=[0.0]),
+        "cost": padded_limits(cost_values, floor_zero=True, extra_values=[BUDGET]),
+        "lambda": padded_limits(lambda_values, extra_values=[0.0]),
+    }
+
+
+def plot_diagnostic(setting_id, data, y_limits=None):
     rounds = np.arange(1, T + 1)
     fig, axes = plt.subplots(2, 2, figsize=(9.5, 6.0))
 
@@ -314,20 +357,29 @@ def plot_diagnostic(setting_id, data):
     plot_band(axes[0, 0], data["cumulative_oracle_utility"], "Oracle", "black", "--")
     axes[0, 0].set_title("Cumulative utility", fontweight="bold", fontsize=10)
     axes[0, 0].legend(fontsize=8)
+    if y_limits:
+        axes[0, 0].set_ylim(*y_limits["utility"])
 
     plot_band(axes[0, 1], data["regret"], "Oracle - learner", f"#{PURPLE}")
     axes[0, 1].axhline(0.0, color="black", linestyle=":", linewidth=1)
     axes[0, 1].set_title("Cumulative regret", fontweight="bold", fontsize=10)
+    if y_limits:
+        axes[0, 1].set_ylim(*y_limits["regret"])
 
     plot_band(axes[1, 0], data["cumulative_cost"], "Learner", f"#{BLUE}")
     plot_band(axes[1, 0], data["cumulative_oracle_cost"], "Oracle", "black", "--")
     axes[1, 0].axhline(BUDGET, color=f"#{RED}", linestyle=":", linewidth=1, label="Budget")
     axes[1, 0].set_title("Cumulative cost", fontweight="bold", fontsize=10)
     axes[1, 0].legend(fontsize=8)
+    if y_limits:
+        axes[1, 0].set_ylim(*y_limits["cost"])
 
     plot_band(axes[1, 1], data["lambda_dual"], "Learner", f"#{TEAL}")
     axes[1, 1].set_title("Dual multiplier", fontweight="bold", fontsize=10)
+    if y_limits:
+        axes[1, 1].set_ylim(*y_limits["lambda"])
     for ax in axes.flat:
+        ax.set_xlim(0, T)
         ax.set_xlabel("Round")
         ax.grid(alpha=0.2)
     cfg = data["config"]
@@ -497,9 +549,117 @@ def remove_slide_by_title(prs, target_title):
             continue
         slide_id = prs.slides._sldIdLst[index]
         prs.part.drop_rel(slide_id.rId)
-        del prs.slides._sldIdLst[index]
+        prs.slides._sldIdLst.remove(slide_id)
         return True
     return False
+
+
+def remove_slides_by_title(prs, target_title, keep=0):
+    seen = 0
+    index = 0
+    while index < len(prs.slides):
+        texts = [getattr(shape, "text", "").strip() for shape in prs.slides[index].shapes]
+        if target_title not in texts:
+            index += 1
+            continue
+        seen += 1
+        if seen <= keep:
+            index += 1
+            continue
+        slide_id = prs.slides._sldIdLst[index]
+        prs.part.drop_rel(slide_id.rId)
+        prs.slides._sldIdLst.remove(slide_id)
+
+
+def move_slide(prs, old_index, new_index):
+    slide_id = prs.slides._sldIdLst[old_index]
+    prs.slides._sldIdLst.remove(slide_id)
+    prs.slides._sldIdLst.insert(new_index, slide_id)
+
+
+def renumber_slides(prs):
+    for number, slide in enumerate(prs.slides, start=1):
+        for shape in slide.shapes:
+            if shape.left < Inches(12) or shape.top < Inches(6.8):
+                continue
+            if not getattr(shape, "has_text_frame", False) or not shape.text.strip().isdigit():
+                continue
+            paragraph = shape.text_frame.paragraphs[0]
+            if paragraph.runs:
+                paragraph.runs[0].text = str(number)
+            else:
+                paragraph.text = str(number)
+
+
+def add_matchstick_edge(slide, x1, y1, x2, y2):
+    shadow = slide.shapes.add_connector(
+        MSO_CONNECTOR.STRAIGHT,
+        Inches(x1 + 0.02),
+        Inches(y1 + 0.02),
+        Inches(x2 + 0.02),
+        Inches(y2 + 0.02),
+    )
+    shadow.line.color.rgb = rgb("8A4B16")
+    shadow.line.width = Pt(9)
+    edge = slide.shapes.add_connector(
+        MSO_CONNECTOR.STRAIGHT,
+        Inches(x1),
+        Inches(y1),
+        Inches(x2),
+        Inches(y2),
+    )
+    edge.line.color.rgb = rgb("D9983D")
+    edge.line.width = Pt(7)
+
+
+def add_graph_node(slide, x, y, label):
+    node = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x - 0.18), Inches(y - 0.18), Inches(0.36), Inches(0.36))
+    node.fill.solid()
+    node.fill.fore_color.rgb = rgb(NAVY)
+    node.line.color.rgb = rgb(WHITE)
+    node.line.width = Pt(1.2)
+    add_text(slide, x - 0.12, y - 0.115, 0.24, 0.2, str(label), size=8.5, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+
+def build_conflict_graph_slide(slide):
+    clear_slide(slide)
+    add_title(slide, "Conflict graph and feasible super-arms", "Edges are incompatible campaign pairs; a super-arm is feasible only if it contains no edge.", 6)
+
+    nodes = {
+        0: (3.05, 1.78),
+        1: (4.45, 2.78),
+        2: (3.9, 4.42),
+        3: (2.2, 4.42),
+        4: (1.65, 2.78),
+    }
+    for first, second in [(0, 1), (1, 2), (2, 3), (3, 4), (4, 0)]:
+        x1, y1 = nodes[first]
+        x2, y2 = nodes[second]
+        add_matchstick_edge(slide, x1, y1, x2, y2)
+    for node, (x, y) in nodes.items():
+        add_graph_node(slide, x, y, node)
+
+    add_text(slide, 0.85, 5.35, 4.45, 0.35, "Forbidden pairs are the five cycle edges.", size=13, bold=True, color=RED, align=PP_ALIGN.CENTER)
+
+    add_box(slide, 5.6, 1.38, 6.7, 1.4, fill=WHITE, line="C8D6E5")
+    add_text(slide, 5.9, 1.6, 1.8, 0.3, "Blocked", size=14, bold=True, color=RED)
+    add_text(slide, 5.9, 2.0, 5.9, 0.42, "{0,1}, {1,2}, {2,3}, {3,4}, {4,0}", size=16, bold=True, color=NAVY)
+    add_text(slide, 5.9, 2.42, 5.95, 0.22, "Adjacent campaigns cannot run in the same round.", size=10.5, color=MUTED)
+
+    add_box(slide, 5.6, 3.08, 6.7, 2.05, fill=PALE, line="C8D6E5")
+    add_text(slide, 5.9, 3.3, 2.1, 0.3, "Feasible", size=14, bold=True, color=GREEN)
+    add_text(slide, 5.9, 3.72, 5.95, 0.34, "Singletons: {0}, {1}, {2}, {3}, {4}", size=13.5, bold=True, color=NAVY)
+    add_text(slide, 5.9, 4.14, 5.95, 0.5, "Non-adjacent pairs: {0,2}, {0,3}, {1,3}, {1,4}, {2,4}", size=13.5, bold=True, color=NAVY)
+    add_text(slide, 5.9, 4.72, 5.95, 0.22, "These 10 sets are the super-arms learned by the Req3 policy.", size=10.5, color=MUTED)
+
+    add_box(slide, 0.85, 6.25, 11.45, 0.55, fill=PALE, line="D9E2EC")
+    add_text(slide, 1.05, 6.34, 11.05, 0.34, "The learner and the oracle use the same feasible super-arm set, so regret is measured on the same action space.", size=12.2, bold=True, color=BLUE, align=PP_ALIGN.CENTER)
+    return slide
+
+
+def add_conflict_graph_slide(prs):
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    return build_conflict_graph_slide(slide)
 
 
 def metrics_for(runs, setting_id):
@@ -517,13 +677,15 @@ def regret_metrics(runs, setting_id):
 
 
 def rebuild_deck(runs, summary, assets):
-    prs = Presentation(PPTX_PATH)
+    source_path = PPTX_TEMPLATE_PATH if PPTX_TEMPLATE_PATH.exists() else PPTX_PATH
+    prs = Presentation(source_path)
     remove_slide_by_title(prs, "Separating sKL and frequency effects")
+    remove_slides_by_title(prs, "Conflict graph and feasible super-arms", keep=0)
 
     # Slide 2: experiment setting.
     slide = prs.slides[1]
     rebuild_slide(slide, 2, "Req3 experiment setting", "Symbols introduced here are used throughout the results slides.")
-    add_card(slide, 0.7, 1.45, 2.8, 1.25, "Shared base", "T=3000, N=5", BLUE, "Budget B=10000; 11 bid levels")
+    add_card(slide, 0.7, 1.45, 2.8, 1.25, "Shared base", "T=3000, N=5", BLUE, "Budget B=2500; 11 bid levels")
     add_card(slide, 3.75, 1.45, 2.8, 1.25, "Separation sKL", "sKL = 20 / 200 / 2000", TEAL, "Pairwise Gaussian separation", value_size=16)
     add_card(slide, 6.8, 1.45, 2.8, 1.25, "Change frequency p", "p = 1/100 / 1/50 / 1/25", ORANGE, "Bernoulli regime-change probability", value_size=16)
     add_card(slide, 9.85, 1.45, 2.8, 1.25, "Realizations R", "R=10 per cell", GREEN, "90 saved market matrices")
@@ -546,14 +708,15 @@ def rebuild_deck(runs, summary, assets):
     rebuild_slide(slide, 8, "Current experiment setup", "All numerical results from this point use the 3 x 3 grid with 10 realizations per cell.")
     add_card(slide, 0.75, 1.45, 2.7, 1.2, "Horizon", "3000 rounds", BLUE)
     add_card(slide, 3.7, 1.45, 2.7, 1.2, "Campaigns", "5", TEAL)
-    add_card(slide, 6.65, 1.45, 2.7, 1.2, "Budget", "10000", ORANGE)
+    add_card(slide, 6.65, 1.45, 2.7, 1.2, "Budget", "2500", ORANGE)
     add_card(slide, 9.6, 1.45, 2.7, 1.2, "Bid grid", "0.0 to 1.0", GREEN, "Step 0.1; 11 bids")
     add_box(slide, 0.75, 3.0, 11.55, 2.75, fill=WHITE, line="C8D6E5")
     add_text(slide, 1.05, 3.25, 5.2, 0.35, "Learner", size=15, bold=True, color=NAVY)
-    add_text(slide, 1.05, 3.7, 5.1, 1.35, "Factorized primal-dual Hedge: one distribution over 11 bids per campaign, with a dual price for spending and a hard feasibility filter.", size=15)
+    add_text(slide, 1.05, 3.7, 5.1, 1.0, "Factorized primal-dual Hedge: one distribution over feasible super-arms and one bid distribution per campaign, with a dual price for spending.", size=14)
     add_text(slide, 6.65, 3.25, 5.2, 0.35, "Reported metrics", size=15, bold=True, color=NAVY)
-    add_text(slide, 6.65, 3.7, 5.15, 1.35, "Learner and oracle cumulative utility and cost, cumulative regret, dual multiplier, and mean +/- SD across 10 shared realizations.", size=15)
-    add_text(slide, 1.05, 5.3, 10.8, 0.48, "Oracle: exact piecewise-static hindsight optimum. It knows the true change points, selects one bid per campaign within each regime, and obeys the same global budget B=10000.", size=12, bold=True, color=BLUE)
+    add_text(slide, 6.65, 3.7, 5.15, 1.0, "Learner and oracle cumulative utility and cost, cumulative regret, dual multiplier, and mean +/- SD across 10 shared realizations.", size=14)
+    add_text(slide, 1.05, 4.78, 10.9, 0.35, "Conflict graph: edges (0,1), (1,2), (2,3), (3,4), (4,0) cannot run together; feasible super-arms are 5 singletons plus 5 non-adjacent pairs.", size=11.5, bold=True, color=NAVY)
+    add_text(slide, 1.05, 5.3, 10.8, 0.48, "Oracle: exact piecewise-static hindsight optimum. It knows the true change points, selects one feasible super-arm action within each regime, and obeys the same global budget B=2500.", size=12, bold=True, color=BLUE)
 
     all_utilities = np.concatenate([data["cumulative_utility"][:, -1] for data in runs.values()])
     all_costs = np.concatenate([data["cumulative_cost"][:, -1] for data in runs.values()])
@@ -593,7 +756,7 @@ def rebuild_deck(runs, summary, assets):
 
     # Slide 12: budget.
     slide = prs.slides[11]
-    rebuild_slide(slide, 12, "Budget feasibility in every setting", "The hard filter keeps realized cumulative cost at or below B=10000 in all 90 runs.")
+    rebuild_slide(slide, 12, "Budget feasibility in every setting", "The hard filter keeps realized cumulative cost at or below B=2500 in all 90 runs.")
     add_picture(slide, assets["budget"], 1.25, 1.45, 7.6, 4.75)
     add_card(slide, 9.15, 1.65, 3.2, 1.25, "Maximum cost", f"{all_costs.max():,.2f}", GREEN)
     add_card(slide, 9.15, 3.15, 3.2, 1.25, "Minimum cost", f"{all_costs.min():,.2f}", BLUE)
@@ -617,16 +780,22 @@ def rebuild_deck(runs, summary, assets):
 
     # Slide 15.
     slide = prs.slides[14]
-    rebuild_slide(slide, 15, "Gaussian Constellation setting", "Current aligned input family used by every numerical slide that follows.")
-    add_card(slide, 0.75, 1.45, 2.7, 1.25, "Modes", "3 per setting", BLUE)
-    add_card(slide, 3.7, 1.45, 2.7, 1.25, "sKL", "20 / 200 / 2000", TEAL)
-    add_card(slide, 6.65, 1.45, 2.7, 1.25, "Frequency", "1/100 / 1/50 / 1/25", ORANGE)
-    add_card(slide, 9.6, 1.45, 2.7, 1.25, "Matrices", "90 total", GREEN)
-    add_picture(slide, assets["profiles"], 0.95, 3.0, 11.4, 3.55)
+    rebuild_slide(slide, 15, "Shared market generation protocol", "The market input is generated and saved before any learner is run.")
+    add_card(slide, 0.75, 1.45, 2.7, 1.25, "1. Gaussian modes", "mu_k, Sigma_k", BLUE, "3 modes; target sKL controls separation", value_size=17)
+    add_card(slide, 3.7, 1.45, 2.7, 1.25, "2. Regime schedule", "q_t", TEAL, "Bernoulli changes with p grid", value_size=21)
+    add_card(slide, 6.65, 1.45, 2.7, 1.25, "3. Market stream", "m_t", ORANGE, "Highest bids for 5 campaigns", value_size=21)
+    add_card(slide, 9.6, 1.45, 2.7, 1.25, "4. Saved input", ".npy / .npz", GREEN, "90 fixed realizations", value_size=17)
+    add_box(slide, 0.85, 3.25, 11.55, 2.6, fill=WHITE, line="C8D6E5")
+    add_text(slide, 1.15, 3.55, 4.9, 0.35, "What is fixed before learning", size=16, bold=True, color=NAVY)
+    add_text(slide, 1.15, 4.05, 4.9, 1.05, "For each setting, config.json records sKL, p, seeds, change points, and active phase ids. constellation.npz stores the Gaussian means and covariances.", size=13.5)
+    add_text(slide, 6.65, 3.55, 4.9, 0.35, "What the learner receives", size=16, bold=True, color=NAVY)
+    add_text(slide, 6.65, 4.05, 4.95, 1.05, "Each run loads one precomputed T x 5 market matrix. Learner randomness changes bids, but never regenerates the market stream.", size=13.5)
+    add_box(slide, 0.85, 6.15, 11.55, 0.55, fill=PALE, line="D9E2EC")
+    add_text(slide, 1.05, 6.24, 11.15, 0.35, "The next slide only visualizes the Gaussian mode means; it does not define a new experimental setting.", size=12, bold=True, color=BLUE, align=PP_ALIGN.CENTER)
 
     # Slide 16.
     slide = prs.slides[15]
-    rebuild_slide(slide, 16, "Current constellation profiles", "Gaussian mode means generated by the shared environment at the three requested sKL levels.")
+    rebuild_slide(slide, 16, "Constellation profiles by sKL", "Gaussian mode means generated by the shared environment at the three requested sKL levels.")
     add_picture(slide, assets["profiles"], 0.8, 1.35, 11.8, 5.65)
 
     # Slide 17.
@@ -666,6 +835,8 @@ def rebuild_deck(runs, summary, assets):
         add_card(slide, 10.3, 5.3, 2.35, 1.05, "Final cost", f"{c_mean:,.2f}", TEAL, f"SD {c_sd:.3f}")
 
     # Slide 25.
+    while len(prs.slides) <= 24:
+        prs.slides.add_slide(prs.slide_layouts[0])
     slide = prs.slides[24]
     rebuild_slide(slide, 25, "Frequency summary at medium sKL", "With shared schedule seed 22000, the schedules change 34, 72, and 131 times at p=1/100, 1/50, and 1/25.")
     add_picture(slide, assets["summary_frequency"], 0.85, 1.35, 11.65, 4.9)
@@ -673,21 +844,33 @@ def rebuild_deck(runs, summary, assets):
     add_text(slide, 1.05, 6.34, 11.25, 0.48, "Why utility is not monotone: a shared seed does not equalize time spent in each mode. Mode 0/1/2 shares are 27/45/28%, 24/43/33%, and 28/33/38%; more time in a favorable mode can raise utility at 1/25.", size=9, color=NAVY, align=PP_ALIGN.CENTER)
 
     # Slide 26.
+    while len(prs.slides) <= 25:
+        prs.slides.add_slide(prs.slide_layouts[0])
     slide = prs.slides[25]
     rebuild_slide(slide, 26, "Current experimental conclusions", "Claims below are restricted to the aligned 90-run Req3 experiment.")
-    add_card(slide, 0.75, 1.45, 3.7, 1.55, "Budget control", "0 violations", GREEN, "All final costs <= 10000")
+    add_card(slide, 0.75, 1.45, 3.7, 1.55, "Budget control", "0 violations", GREEN, "All final costs <= 2500")
     add_card(slide, 4.8, 1.45, 3.7, 1.55, "Main sensitivity", "sKL dominates", BLUE, "Utility falls as separation rises")
-    add_card(slide, 8.85, 1.45, 3.7, 1.55, "Oracle benchmark", "Regret measured", PURPLE, "Piecewise-static, same global budget")
+    add_card(slide, 8.85, 1.45, 3.7, 1.55, "Oracle benchmark", "Regret measured", PURPLE, "Piecewise-static, same feasible super-arms")
     add_box(slide, 0.75, 3.45, 11.8, 2.25, fill=PALE, line="D9E2EC")
     add_text(slide, 1.05, 3.7, 11.2, 0.42, "What the experiment supports", size=16, bold=True, color=NAVY)
-    add_text(slide, 1.05, 4.18, 11.1, 1.05, "The factorized primal-dual learner remains budget-feasible on every shared realization. Regret is computed against the exact piecewise-static hindsight oracle under the same B=10000 global budget. Final utility and regret both vary materially with sKL.", size=15)
+    add_text(slide, 1.05, 4.18, 11.1, 1.05, "The factorized primal-dual learner remains budget-feasible on every shared realization. Regret is computed against the exact piecewise-static hindsight oracle under the same feasible super-arm set and B=2500 global budget. Final utility and regret both vary materially with sKL.", size=15)
     add_text(slide, 1.05, 5.35, 11.1, 0.32, "The same oracle definition and matrix files must be used for sliding-window and change-detector comparisons.", size=13, bold=True, color=BLUE)
 
     from repair_slide_typography import repair_presentation
 
     repair_presentation(prs)
-    prs.save(PPTX_PATH)
-    return PPTX_PATH
+    protocol_index = next(
+        index
+        for index, slide in enumerate(prs.slides)
+        if "Shared market generation protocol" in [getattr(shape, "text", "").strip() for shape in slide.shapes]
+    )
+    build_conflict_graph_slide(prs.slides[protocol_index])
+    move_slide(prs, protocol_index, 5)
+    remove_slides_by_title(prs, "Conflict graph and feasible super-arms", keep=1)
+    renumber_slides(prs)
+    output = PPTX_PATH
+    prs.save(output)
+    return output
 
 
 def main():
@@ -704,8 +887,14 @@ def main():
         "summary_skl": plot_summary_axis(runs, "skl"),
         "summary_frequency": plot_summary_axis(runs, "frequency"),
     }
+    diagnostic_comparison_ids = [
+        *[f"medium_frequency_{skl}" for skl in SKL_ORDER],
+        *[f"{freq}_medium_skl" for freq in FREQ_ORDER],
+    ]
+    diagnostic_limits = build_diagnostic_limits(runs, diagnostic_comparison_ids)
     for setting_id, data in runs.items():
-        assets[f"diag_{setting_id}"] = plot_diagnostic(setting_id, data)
+        limits = diagnostic_limits if setting_id in diagnostic_comparison_ids else None
+        assets[f"diag_{setting_id}"] = plot_diagnostic(setting_id, data, limits)
     assets["diag_medium"] = assets["diag_medium_frequency_medium_skl"]
     output = rebuild_deck(runs, summary, assets)
     print(f"saved updated deck to {output}")

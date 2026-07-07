@@ -1,4 +1,4 @@
-"""Run Req3 factorized primal-dual on the 90 saved market matrices."""
+"""Run the Req3 factorized primal-dual learner on saved realization matrices."""
 
 from __future__ import annotations
 
@@ -14,15 +14,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.piecewise_static_oracle import solve_piecewise_static_oracle
-from ola.algorithms.primal_dual import FactorizedPrimalDualHedgeLearner
+from experiments.piecewise_static_oracle import solve_piecewise_static_oracle  # noqa: E402
+from ola.algorithms.primal_dual import FactorizedPrimalDualHedgeLearner  # noqa: E402
 
 
 INPUT_DIR = PROJECT_ROOT / "results" / "processed" / "req4_shared_realizations"
 OUTPUT_DIR = PROJECT_ROOT / "results" / "processed" / "req3_on_req4_shared"
 T = 3000
 N = 5
-BUDGET = 10000.0
+BUDGET = 2500.0
 BID_SET = np.linspace(0.0, 1.0, 11)
 VALUES = np.ones(N)
 
@@ -85,108 +85,104 @@ def run_factorized_primal_dual_trial(
     }
 
 
+def run_one(setting_dir: Path, realization_path: Path, realization_idx: int, config: dict):
+    matrix = np.load(realization_path)
+    result = run_factorized_primal_dual_trial(
+        env_seed=0,
+        learner_seed=2000 + realization_idx,
+        T=T,
+        N=N,
+        K_value=int(config["oracle_block_length"]),
+        bid_set=BID_SET,
+        values=VALUES,
+        budget=BUDGET,
+        allowed_campaign_sets=config.get("allowed_campaign_sets"),
+        conflict_edges=config.get("conflict_edges"),
+        environment="precomputed",
+        environment_kwargs={"path": realization_path},
+    )
+    oracle = solve_piecewise_static_oracle(
+        market_matrix=matrix,
+        change_points=config["change_points"],
+        bid_set=BID_SET,
+        values=VALUES,
+        budget=BUDGET,
+        allowed_campaign_sets=config.get("allowed_campaign_sets"),
+        conflict_edges=config.get("conflict_edges"),
+    )
+    regret = oracle["cumulative_utility"] - result["cumulative_utility"]
+    return {
+        "setting_id": config["setting_id"],
+        "frequency_label": config["frequency_label"],
+        "skl_label": config["skl_label"],
+        "target_skl": config["target_skl"],
+        "change_frequency": config["change_frequency"],
+        "realization": realization_idx,
+        "matrix_file": str(realization_path.relative_to(PROJECT_ROOT)),
+        "final_utility": float(result["cumulative_utility"][-1]),
+        "final_cost": float(result["cumulative_cost"][-1]),
+        "final_oracle_utility": float(oracle["cumulative_utility"][-1]),
+        "final_oracle_cost": float(oracle["cumulative_cost"][-1]),
+        "final_regret": float(regret[-1]),
+        "budget_left": float(result["remaining_budgets"][-1]),
+        "mean_bid": float(result["chosen_actions"].mean()),
+        "mean_positive_bids_per_round": float((result["chosen_actions"] > 0).sum(axis=1).mean()),
+    }
+
+
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    timeseries_dir = OUTPUT_DIR / "timeseries"
-    timeseries_dir.mkdir(exist_ok=True)
-    raw_rows = []
-    summary_rows = []
-
+    rows = []
     for setting_dir in sorted(path for path in INPUT_DIR.iterdir() if path.is_dir()):
-        config = json.loads((setting_dir / "config.json").read_text(encoding="utf-8"))
-        setting_rows = []
-        for realization, matrix_path in enumerate(sorted(setting_dir.glob("realization_*.npy"))):
-            result = run_factorized_primal_dual_trial(
-                0,
-                2000 + realization,
-                T=T,
-                N=N,
-                K_value=config["oracle_block_length"],
-                bid_set=BID_SET,
-                values=VALUES,
-                budget=BUDGET,
-                allowed_campaign_sets=config.get("allowed_campaign_sets"),
-                conflict_edges=config.get("conflict_edges"),
-                environment_kwargs={"path": matrix_path},
+        with (setting_dir / "config.json").open(encoding="utf-8") as handle:
+            config = json.load(handle)
+        for realization_idx, realization_path in enumerate(sorted(setting_dir.glob("realization_*.npy"))):
+            row = run_one(setting_dir, realization_path, realization_idx, config)
+            rows.append(row)
+            print(
+                f"{row['setting_id']} r{realization_idx}: "
+                f"utility={row['final_utility']:.2f}, cost={row['final_cost']:.2f}"
             )
-            oracle = solve_piecewise_static_oracle(
-                np.load(matrix_path),
-                config["change_points"],
-                BID_SET,
-                VALUES,
-                BUDGET,
-            )
-            regret = oracle["cumulative_utility"] - result["cumulative_utility"]
-            compact = {
-                "cumulative_utility": result["cumulative_utility"],
-                "cumulative_cost": result["cumulative_cost"],
-                "cumulative_oracle_utility": oracle["cumulative_utility"],
-                "cumulative_oracle_cost": oracle["cumulative_cost"],
-                "regret": regret,
-                "remaining_budget": result["remaining_budgets"],
-                "lambda_dual": result["lambdas"],
-                "mean_bid": result["chosen_actions"].mean(axis=1),
-            }
-            setting_rows.append(compact)
-            raw_rows.append(
-                {
-                    "setting_id": config["setting_id"],
-                    "frequency_label": config["frequency_label"],
-                    "skl_label": config["skl_label"],
-                    "target_skl": config["target_skl"],
-                    "change_frequency": config["change_frequency"],
-                    "realization": realization,
-                    "matrix_file": str(matrix_path.relative_to(PROJECT_ROOT)),
-                    "final_utility": float(result["cumulative_utility"][-1]),
-                    "final_cost": float(result["cumulative_cost"][-1]),
-                    "final_oracle_utility": float(oracle["cumulative_utility"][-1]),
-                    "final_oracle_cost": float(oracle["cumulative_cost"][-1]),
-                    "final_regret": float(regret[-1]),
-                    "budget_left": float(result["remaining_budgets"][-1]),
-                }
-            )
-        stacked = {key: np.stack([row[key] for row in setting_rows]) for key in setting_rows[0]}
-        np.savez_compressed(timeseries_dir / f"{config['setting_id']}.npz", **stacked)
 
-    for setting_id in sorted({row["setting_id"] for row in raw_rows}):
-        group = [row for row in raw_rows if row["setting_id"] == setting_id]
-        first = group[0]
-        summary = {
-            key: np.asarray([row[key] for row in group], dtype=float)
-            for key in ["final_utility", "final_cost", "final_oracle_utility", "final_oracle_cost", "final_regret", "budget_left"]
+    raw_path = OUTPUT_DIR / "req3_factorized_raw.csv"
+    with raw_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    summary_rows = []
+    keys = sorted({(row["frequency_label"], row["skl_label"]) for row in rows})
+    for frequency_label, skl_label in keys:
+        group = [row for row in rows if row["frequency_label"] == frequency_label and row["skl_label"] == skl_label]
+        metrics = {
+            "utility": np.array([row["final_utility"] for row in group]),
+            "cost": np.array([row["final_cost"] for row in group]),
+            "oracle_utility": np.array([row["final_oracle_utility"] for row in group]),
+            "oracle_cost": np.array([row["final_oracle_cost"] for row in group]),
+            "regret": np.array([row["final_regret"] for row in group]),
         }
         summary_rows.append(
             {
-                "setting_id": setting_id,
-                "frequency_label": first["frequency_label"],
-                "skl_label": first["skl_label"],
-                "target_skl": first["target_skl"],
-                "change_frequency": first["change_frequency"],
+                "frequency_label": frequency_label,
+                "skl_label": skl_label,
                 "n_realizations": len(group),
                 **{
-                    f"{name.removeprefix('final_')}_{stat}": float(
-                        values.mean() if stat == "mean" else values.std(ddof=1)
-                    )
-                    for name, values in summary.items()
-                    if name != "budget_left"
+                    f"{name}_{stat}": float(values.mean() if stat == "mean" else values.std(ddof=1))
+                    for name, values in metrics.items()
                     for stat in ["mean", "std"]
                 },
-                "budget_left_mean": float(summary["budget_left"].mean()),
-                "budget_left_max": float(summary["budget_left"].max()),
-                "n_change_points": len(
-                    json.loads((INPUT_DIR / setting_id / "config.json").read_text())["change_points"]
-                ),
+                "budget_left_mean": float(np.mean([row["budget_left"] for row in group])),
             }
         )
 
-    for path, rows in [
-        (OUTPUT_DIR / "req3_factorized_raw.csv", raw_rows),
-        (OUTPUT_DIR / "req3_factorized_summary.csv", summary_rows),
-    ]:
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-            writer.writeheader()
-            writer.writerows(rows)
+    summary_path = OUTPUT_DIR / "req3_factorized_summary.csv"
+    with summary_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(summary_rows[0]))
+        writer.writeheader()
+        writer.writerows(summary_rows)
+
+    print(f"Saved raw results to {raw_path}")
+    print(f"Saved summary to {summary_path}")
 
 
 if __name__ == "__main__":
