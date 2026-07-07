@@ -522,15 +522,15 @@ def rebuild_deck(runs, summary, assets):
 
     # Slide 2: experiment setting.
     slide = prs.slides[1]
-    rebuild_slide(slide, 2, "Req3 experiment setting", "The market stream is fixed before the learner is run.")
-    add_card(slide, 0.7, 1.45, 2.8, 1.25, "Shared base", "T=3000, N=5", BLUE, "B=10000; 11 bid levels")
-    add_card(slide, 3.75, 1.45, 2.8, 1.25, "sKL grid", "20 / 200 / 2000", TEAL, "Shared symmetric-KL definition", value_size=17)
-    add_card(slide, 6.8, 1.45, 2.8, 1.25, "Frequency grid", "1/100 / 1/50 / 1/25", ORANGE, "Stochastic regime changes")
-    add_card(slide, 9.85, 1.45, 2.8, 1.25, "Replications", "10 per cell", GREEN, "90 exact market matrices")
+    rebuild_slide(slide, 2, "Req3 experiment setting", "Symbols introduced here are used throughout the results slides.")
+    add_card(slide, 0.7, 1.45, 2.8, 1.25, "Shared base", "T=3000, N=5", BLUE, "Budget B=10000; 11 bid levels")
+    add_card(slide, 3.75, 1.45, 2.8, 1.25, "Separation sKL", "sKL = 20 / 200 / 2000", TEAL, "Pairwise Gaussian separation", value_size=16)
+    add_card(slide, 6.8, 1.45, 2.8, 1.25, "Change frequency p", "p = 1/100 / 1/50 / 1/25", ORANGE, "Bernoulli regime-change probability", value_size=16)
+    add_card(slide, 9.85, 1.45, 2.8, 1.25, "Realizations R", "R=10 per cell", GREEN, "90 saved market matrices")
     add_box(slide, 0.7, 3.05, 11.95, 2.8, fill=WHITE, line="C8D6E5")
-    add_text(slide, 1.0, 3.3, 11.3, 0.4, "Saved market realizations", size=17, bold=True, color=NAVY)
-    add_text(slide, 1.0, 3.85, 11.2, 1.25, "For each setting, the Gaussian modes, change points, active modes, and sample seed are saved before learning starts. The learner then receives one precomputed highest-competing-bid matrix.", size=16)
-    add_text(slide, 1.0, 5.15, 11.2, 0.42, "This makes the experiment reproducible: changing the learner seed does not regenerate the market.", size=13, bold=True, color=BLUE)
+    add_text(slide, 1.0, 3.3, 11.3, 0.4, "Notation saved with each setting", size=17, bold=True, color=NAVY)
+    add_text(slide, 1.0, 3.85, 11.2, 1.25, "For each setting (sKL, p), config.json stores change points, phase_ids q_t, active modes, and seeds. constellation.npz stores Gaussian means mu_k and covariances Sigma_k; streams.npz stores market vectors m_t and phase_ids for t=1,...,T.", size=14)
+    add_text(slide, 1.0, 5.15, 11.2, 0.42, "The learner receives the precomputed m_t sequence; learner randomness does not regenerate q_t or the market stream.", size=12, bold=True, color=BLUE)
 
     # Slide 4: current environment.
     slide = prs.slides[3]
