@@ -246,19 +246,32 @@ def rebuild_update(slide):
     for (x, y), (heading, accent) in zip(positions, headings):
         accent_card(slide, x, y, 5.55, 1.7, accent, heading)
 
-    lagrangian = sym("â„“", "t,i", size=18) + ["(g) = "] + sym("u", "t,i", size=18) + ["(g) âˆ’ "] + sym("Î»", "t", size=18) + [" "] + sym("c", "t,i", size=18) + ["(g)"]
+    lagrangian = sym("ℓ", "t,i", size=18) + ["(g) = "] + sym("u", "t,i", size=18) + ["(g) − "] + sym("λ", "t", size=18) + [" "] + sym("c", "t,i", size=18) + ["(g)"]
     add_rich(slide, 1.08, 2.08, 4.75, 0.42, lagrangian, 18, NAVY, True)
     add_text(slide, 1.08, 2.53, 4.7, 0.43, "Higher dual prices penalize expensive bids.", 12, False, MUTED)
 
-    hedge = sym("w", "t+1,i", size=17) + ["(g) = "] + sym("w", "t,i", size=17) + ["(g) exp(Î· "] + sym("â„“Ìƒ", "t,i", size=17) + ["(g))"]
+    hedge = sym("w", "t+1,i", size=17) + ["(g) = "] + sym("w", "t,i", size=17) + ["(g) exp(η "] + sym("ℓ̃", "t,i", size=17) + ["(g))"]
     add_rich(slide, 7.08, 2.08, 4.75, 0.42, hedge, 17, NAVY, True)
-    add_text(slide, 7.08, 2.53, 4.7, 0.43, "Normalized high-score bids gain multiplicative weight.", 12, False, MUTED)
+    normalized_score = (
+        sym("ℓ̃", "t,i", size=10.5)
+        + ["(g) = ("]
+        + sym("ℓ", "t,i", size=10.5)
+        + ["(g) - min_h "]
+        + sym("ℓ", "t,i", size=10.5)
+        + ["(h)) / (max_h "]
+        + sym("ℓ", "t,i", size=10.5)
+        + ["(h) - min_h "]
+        + sym("ℓ", "t,i", size=10.5)
+        + ["(h))"]
+    )
+    add_rich(slide, 7.08, 2.48, 4.95, 0.28, normalized_score, 10.5, NAVY, False)
+    add_text(slide, 7.08, 2.82, 4.7, 0.3, "Normalized high-score bids gain multiplicative weight.", 11, False, MUTED)
 
-    dual = sym("Î»", "t+1", size=17) + [" = Î "] + sym("", "[0,1/Ï]", size=17) + ["("] + sym("Î»", "t", size=17) + [" + "] + sym("Î·", "Î»", size=17) + ["("] + sym("c", "t", size=17) + [" âˆ’ Ï))"]
+    dual = sym("λ", "t+1", size=17) + [" = Π"] + sym("", "[0,1/ρ]", size=17) + ["("] + sym("λ", "t", size=17) + [" + "] + sym("η", "λ", size=17) + ["("] + sym("c", "t", size=17) + [" − ρ))"]
     add_rich(slide, 1.08, 4.23, 4.8, 0.42, dual, 17, NAVY, True)
-    add_rich(slide, 1.08, 4.7, 4.5, 0.4, ["Ï = B / T"], 16, MUTED)
+    add_rich(slide, 1.08, 4.7, 4.5, 0.4, ["ρ = B / T"], 16, MUTED)
 
-    add_text(slide, 7.08, 4.16, 4.75, 0.75, "If spending exceeds Ï, Î» rises and costly bids become less attractive. Below Ï, the pressure can relax.", 13)
+    add_text(slide, 7.08, 4.16, 4.75, 0.75, "If spending exceeds ρ, λ rises and costly bids become less attractive. Below ρ, the pressure can relax.", 13)
     add_text(slide, 7.08, 4.92, 4.75, 0.32, "Projection keeps the multiplier bounded.", 12, True, GREEN)
 
     add_shape(slide, 1.3, 5.85, 10.7, 0.68, PALE, "D9E2EC")
