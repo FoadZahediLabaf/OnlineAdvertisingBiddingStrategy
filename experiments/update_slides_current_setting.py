@@ -46,7 +46,7 @@ FREQ_ORDER = ["low_frequency", "medium_frequency", "high_frequency"]
 SKL_ORDER = ["low_skl", "medium_skl", "high_skl"]
 FREQ_LABELS = {
     "low_frequency": "Low frequency (1/1500)",
-    "medium_frequency": "Medium frequency (1/50)",
+    "medium_frequency": "Medium frequency (1/200)",
     "high_frequency": "High frequency (1/25)",
 }
 SKL_LABELS = {
@@ -219,7 +219,7 @@ def plot_heatmaps(summary):
     ]:
         image = ax.imshow(grid, aspect="auto", cmap=cmap)
         ax.set_xticks(range(3), ["sKL 20", "sKL 200", "sKL 500"])
-        ax.set_yticks(range(3), ["1/1500", "1/50", "1/25"])
+        ax.set_yticks(range(3), ["1/1500", "1/200", "1/25"])
         ax.set_xlabel("Symmetric KL level")
         ax.set_ylabel("Change probability")
         ax.set_title(title, fontweight="bold")
@@ -235,7 +235,7 @@ def plot_heatmaps(summary):
     gap = BUDGET - cost
     image = ax.imshow(gap, aspect="auto", cmap="Greens_r", vmin=0)
     ax.set_xticks(range(3), ["sKL 20", "sKL 200", "sKL 500"])
-    ax.set_yticks(range(3), ["1/1500", "1/50", "1/25"])
+    ax.set_yticks(range(3), ["1/1500", "1/200", "1/25"])
     ax.set_xlabel("Symmetric KL level")
     ax.set_ylabel("Change probability")
     ax.set_title("Mean unused budget (B - final cost)", fontweight="bold")
@@ -397,10 +397,10 @@ def plot_summary_axis(runs, axis):
         keys = [f"medium_frequency_{skl}" for skl in SKL_ORDER]
         labels = ["20", "200", "500"]
         xlabel = "Target symmetric KL"
-        title = "Medium frequency (1/50): final outcomes by sKL"
+        title = "Medium frequency (1/200): final outcomes by sKL"
     else:
         keys = [f"{freq}_medium_skl" for freq in FREQ_ORDER]
-        labels = ["1/1500", "1/50", "1/25"]
+        labels = ["1/1500", "1/200", "1/25"]
         xlabel = "Change probability"
         title = "Medium sKL (200): final outcomes by frequency"
 
@@ -687,7 +687,7 @@ def rebuild_deck(runs, summary, assets):
     rebuild_slide(slide, 2, "Req3 experiment setting", "Symbols introduced here are used throughout the results slides.")
     add_card(slide, 0.7, 1.45, 2.8, 1.25, "Shared base", "T=3000, N=5", BLUE, "Budget B=2500; 11 bid levels")
     add_card(slide, 3.75, 1.45, 2.8, 1.25, "Separation sKL", "sKL = 20 / 200 / 500", TEAL, "Pairwise Gaussian separation", value_size=16)
-    add_card(slide, 6.8, 1.45, 2.8, 1.25, "Change frequency p", "p = 1/1500 / 1/50 / 1/25", ORANGE, "Bernoulli regime-change probability", value_size=16)
+    add_card(slide, 6.8, 1.45, 2.8, 1.25, "Change frequency p", "p = 1/1500 / 1/200 / 1/25", ORANGE, "Bernoulli regime-change probability", value_size=16)
     add_card(slide, 9.85, 1.45, 2.8, 1.25, "Realizations R", "R=10 per cell", GREEN, "90 saved market matrices")
     add_box(slide, 0.7, 3.05, 11.95, 2.8, fill=WHITE, line="C8D6E5")
     add_text(slide, 1.0, 3.3, 11.3, 0.4, "Notation saved with each setting", size=17, bold=True, color=NAVY)
@@ -698,7 +698,7 @@ def rebuild_deck(runs, summary, assets):
     slide = prs.slides[3]
     rebuild_slide(slide, 4, "Non-stationary market environment", "Each experiment consumes a precomputed 3000 x 5 highest-competing-bid matrix.")
     add_card(slide, 0.75, 1.5, 2.7, 1.35, "1. Constellation", "3 Gaussian modes", BLUE, "Target sKL controls separation")
-    add_card(slide, 3.7, 1.5, 2.7, 1.35, "2. Schedule", "Bernoulli changes", TEAL, "p = 1/1500, 1/50, 1/25")
+    add_card(slide, 3.7, 1.5, 2.7, 1.35, "2. Schedule", "Bernoulli changes", TEAL, "p = 1/1500, 1/200, 1/25")
     add_card(slide, 6.65, 1.5, 2.7, 1.35, "3. Realization", "m_t in [0,1]^5", ORANGE, "One vector for every round")
     add_card(slide, 9.6, 1.5, 2.7, 1.35, "4. Input", "Saved matrix", GREEN, "Loaded by the learner")
     add_picture(slide, assets["high_spectrum"], 0.85, 3.15, 11.7, 3.35)
@@ -769,7 +769,7 @@ def rebuild_deck(runs, summary, assets):
 
     # Slide 14: representative diagnostic.
     slide = prs.slides[13]
-    rebuild_slide(slide, 14, "Representative current run dynamics", "Medium sKL (200), medium frequency (1/50), mean +/- SD over 10 shared realizations.")
+    rebuild_slide(slide, 14, "Representative current run dynamics", "Medium sKL (200), medium frequency (1/200), mean +/- SD over 10 shared realizations.")
     add_picture(slide, assets["diag_medium"], 0.85, 1.35, 9.2, 5.65)
     u_mean, u_sd, c_mean, c_sd = metrics_for(runs, "medium_frequency_medium_skl")
     r_mean, r_sd, o_mean, o_sd = regret_metrics(runs, "medium_frequency_medium_skl")
@@ -807,7 +807,7 @@ def rebuild_deck(runs, summary, assets):
     for slide_idx, skl, number in zip([17, 18, 19], SKL_ORDER, [18, 19, 20]):
         setting_id = f"medium_frequency_{skl}"
         slide = prs.slides[slide_idx]
-        rebuild_slide(slide, number, f"{SKL_LABELS[skl]} diagnostics", "Medium change frequency (1/50); mean +/- SD over the 10 shared realizations.")
+        rebuild_slide(slide, number, f"{SKL_LABELS[skl]} diagnostics", "Medium change frequency (1/200); mean +/- SD over the 10 shared realizations.")
         add_picture(slide, assets[f"diag_{setting_id}"], 0.75, 1.35, 9.35, 5.7)
         u_mean, u_sd, c_mean, c_sd = metrics_for(runs, setting_id)
         r_mean, r_sd, o_mean, o_sd = regret_metrics(runs, setting_id)
@@ -838,10 +838,10 @@ def rebuild_deck(runs, summary, assets):
     while len(prs.slides) <= 24:
         prs.slides.add_slide(prs.slide_layouts[0])
     slide = prs.slides[24]
-    rebuild_slide(slide, 25, "Frequency summary at medium sKL", "The schedules change 2, 72, and 131 times at p=1/1500, 1/50, and 1/25.")
+    rebuild_slide(slide, 25, "Frequency summary at medium sKL", "The schedules change 2, 13, and 131 times at p=1/1500, 1/200, and 1/25.")
     add_picture(slide, assets["summary_frequency"], 0.85, 1.35, 11.65, 4.9)
     add_box(slide, 0.85, 6.3, 11.65, 0.58, fill=PALE, line="D9E2EC")
-    add_text(slide, 1.05, 6.34, 11.25, 0.48, "Why utility is not monotone: schedule seeds do not equalize time spent in each mode. Mode 0/1/2 shares are 27/40/34%, 24/43/33%, and 28/33/38% for p=1/1500, 1/50, and 1/25.", size=9, color=NAVY, align=PP_ALIGN.CENTER)
+    add_text(slide, 1.05, 6.34, 11.25, 0.48, "Why utility is not monotone: schedule seeds do not equalize time spent in each mode. Mode 0/1/2 shares are 27/40/34%, 36/33/31%, and 28/33/38% for p=1/1500, 1/200, and 1/25.", size=9, color=NAVY, align=PP_ALIGN.CENTER)
 
     # Slide 26.
     while len(prs.slides) <= 25:

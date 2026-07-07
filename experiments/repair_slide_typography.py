@@ -192,7 +192,7 @@ def rebuild_environment(slide):
 
     switch_formula = ["Pr("] + sym("z", "t", size=18) + [" ≠ "] + sym("z", "t−1", size=18) + [") = p"]
     add_rich(slide, 1.08, 3.82, 4.75, 0.4, switch_formula, 18, NAVY, True)
-    add_text(slide, 1.08, 4.24, 4.75, 0.3, "p = 1/1500, 1/50, or 1/25; larger p gives more change points.", 11, False, MUTED)
+    add_text(slide, 1.08, 4.24, 4.75, 0.3, "p = 1/1500, 1/200, or 1/25; larger p gives more change points.", 11, False, MUTED)
 
     matrix_formula = ["M = ["] + sym("m", "1", size=18) + [", ..., "] + sym("m", "T", size=18) + ["]"] + sym("", superscript="⊤", size=18) + [" ∈ [0, 1]"] + sym("", superscript="3000×5", size=18)
     add_rich(slide, 7.12, 3.82, 4.72, 0.4, matrix_formula, 18, NAVY, True)
@@ -403,7 +403,7 @@ def rebuild_distribution(slide):
 def refine_generated_slides(prs):
     # Multi-value frequency card: keep it on one clean line.
     for shape in prs.slides[1].shapes:
-        if getattr(shape, "text", "").strip() == "1/1500 / 1/50 / 1/25":
+        if getattr(shape, "text", "").strip() == "1/1500 / 1/200 / 1/25":
             for paragraph in shape.text_frame.paragraphs:
                 paragraph.font.size = Pt(16)
     for shape in prs.slides[3].shapes:
@@ -420,7 +420,7 @@ def refine_generated_slides(prs):
             for paragraph in shape.text_frame.paragraphs:
                 paragraph.font.size = Pt(14)
     for shape in prs.slides[14].shapes:
-        if getattr(shape, "text", "").strip() == "1/1500 / 1/50 / 1/25":
+        if getattr(shape, "text", "").strip() == "1/1500 / 1/200 / 1/25":
             for paragraph in shape.text_frame.paragraphs:
                 paragraph.font.size = Pt(15)
     # Slightly reduce the two text blocks that sit exactly on their width limit.
