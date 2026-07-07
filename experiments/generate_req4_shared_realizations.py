@@ -91,6 +91,14 @@ def make_schedule(change_frequency: float, schedule_seed: int):
     return change_points, mode_ids
 
 
+def phase_ids_by_round(change_points: list[int], mode_ids: list[int]) -> np.ndarray:
+    phase_ids = np.empty(T, dtype=int)
+    boundaries = [0] + change_points + [T]
+    for start, end, mode_id in zip(boundaries[:-1], boundaries[1:], mode_ids):
+        phase_ids[start:end] = mode_id
+    return phase_ids
+
+
 def sample_stream(modes, change_points, mode_ids, sample_seed: int):
     rng = np.random.default_rng(sample_seed)
     boundaries = [0] + change_points + [T]
@@ -110,11 +118,18 @@ def save_setting(freq_label, change_frequency, oracle_block_length, schedule_see
     modes = build_modes(target_skl)
     mus = np.stack([mode[0] for mode in modes])
     sigmas = np.stack([mode[1] for mode in modes])
-    np.savez_compressed(setting_dir / "constellation.npz", mus=mus, sigmas=sigmas)
+    np.savez_compressed(
+        setting_dir / "constellation.npz",
+        mus=mus,
+        sigmas=sigmas,
+        means=mus,
+        covariances=sigmas,
+    )
 
     streams = []
     sample_seeds = []
     change_points, mode_ids = make_schedule(change_frequency, schedule_seed)
+    phase_ids = phase_ids_by_round(change_points, mode_ids)
     for realization_idx in range(N_REALIZATIONS):
         sample_seed = 100_000 + realization_idx
         stream = sample_stream(modes, change_points, mode_ids, sample_seed)
@@ -126,6 +141,13 @@ def save_setting(freq_label, change_frequency, oracle_block_length, schedule_see
         setting_dir / "streams.npz",
         streams=np.stack(streams),
         sample_seeds=np.array(sample_seeds, dtype=int),
+        phase_ids=phase_ids,
+        change_points=np.array(change_points, dtype=int),
+        mode_ids_by_window=np.array(mode_ids, dtype=int),
+        means=mus,
+        covariances=sigmas,
+        mus=mus,
+        sigmas=sigmas,
     )
 
     config = {
