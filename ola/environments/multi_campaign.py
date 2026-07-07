@@ -167,8 +167,10 @@ class MultiCampaignEnvironment(BaseEnvironment):
         self.current_round += 1
         done = self.current_round >= self.horizon or self.budget_left <= 0.0
 
-        # Bandit feedback: only reward and cost are exposed for learning.
-        # Realized competing bids go in info["debug"] for visualization only.
+        # Semi-bandit feedback: for each played campaign the learner observes its
+        # win/loss (and hence the realized per-arm reward and cost), but never the
+        # rival bid m_i. The realized competing bids are returned only in
+        # info["debug"] for visualization, not for learning.
         return {
             "round": self.current_round,
             "action": action,
