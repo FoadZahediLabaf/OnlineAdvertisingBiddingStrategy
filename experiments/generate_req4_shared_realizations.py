@@ -43,11 +43,11 @@ CONFLICT_EDGES = [
 SKL_SETTINGS = [
     ("low_skl", 20),
     ("medium_skl", 200),
-    ("high_skl", 2000),
+    ("high_skl", 500),
 ]
 
 FREQUENCY_SETTINGS = [
-    ("low_frequency", 1 / 100, 100, 22_000),
+    ("low_frequency", 1 / 1500, 1500, 106),
     ("medium_frequency", 1 / 50, 50, 22_000),
     ("high_frequency", 1 / 25, 25, 22_000),
 ]

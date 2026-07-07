@@ -75,7 +75,7 @@
     0.9,
     1.0
   ],
-  "target_skl": 2000,
+  "target_skl": 500,
   "skl_label": "high_skl",
   "frequency_label": "medium_frequency",
   "change_frequency": 0.02,

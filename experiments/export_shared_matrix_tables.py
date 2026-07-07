@@ -31,7 +31,7 @@ FREQ_CODES = {
 SKL_CODES = {
     "low_skl": "S20",
     "medium_skl": "S200",
-    "high_skl": "S2000",
+    "high_skl": "S500",
 }
 
 
