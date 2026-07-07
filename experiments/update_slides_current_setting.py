@@ -838,10 +838,10 @@ def rebuild_deck(runs, summary, assets):
     while len(prs.slides) <= 24:
         prs.slides.add_slide(prs.slide_layouts[0])
     slide = prs.slides[24]
-    rebuild_slide(slide, 25, "Frequency summary at medium sKL", "The schedules change 2, 13, and 131 times at p=1/1500, 1/200, and 1/25.")
+    rebuild_slide(slide, 25, "Frequency summary at medium sKL", "The schedules change 2, 12, and 131 times at p=1/1500, 1/200, and 1/25.")
     add_picture(slide, assets["summary_frequency"], 0.85, 1.35, 11.65, 4.9)
     add_box(slide, 0.85, 6.3, 11.65, 0.58, fill=PALE, line="D9E2EC")
-    add_text(slide, 1.05, 6.34, 11.25, 0.48, "Why utility is not monotone: schedule seeds do not equalize time spent in each mode. Mode 0/1/2 shares are 27/40/34%, 36/33/31%, and 28/33/38% for p=1/1500, 1/200, and 1/25.", size=9, color=NAVY, align=PP_ALIGN.CENTER)
+    add_text(slide, 1.05, 6.34, 11.25, 0.48, "Why utility is not monotone: schedule seeds do not equalize time spent in each mode. Mode 0/1/2 shares are 27/40/34%, 23/32/45%, and 28/33/38% for p=1/1500, 1/200, and 1/25.", size=9, color=NAVY, align=PP_ALIGN.CENTER)
 
     # Slide 26.
     while len(prs.slides) <= 25:

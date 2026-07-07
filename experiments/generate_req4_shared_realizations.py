@@ -48,7 +48,7 @@ SKL_SETTINGS = [
 
 FREQUENCY_SETTINGS = [
     ("low_frequency", 1 / 1500, 1500, 106),
-    ("medium_frequency", 1 / 200, 200, 5_081),
+    ("medium_frequency", 1 / 200, 200, 2_044),
     ("high_frequency", 1 / 25, 25, 22_000),
 ]
 

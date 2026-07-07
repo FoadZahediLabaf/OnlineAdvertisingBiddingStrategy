@@ -2,9 +2,9 @@ setting_id,frequency_label,skl_label,target_skl,change_frequency,oracle_block_le
 low_frequency_low_skl,low_frequency,low_skl,20,0.0006666666666666666,1500,106,2,3000x5,10
 low_frequency_medium_skl,low_frequency,medium_skl,200,0.0006666666666666666,1500,106,2,3000x5,10
 low_frequency_high_skl,low_frequency,high_skl,500,0.0006666666666666666,1500,106,2,3000x5,10
-medium_frequency_low_skl,medium_frequency,low_skl,20,0.005,200,5081,13,3000x5,10
-medium_frequency_medium_skl,medium_frequency,medium_skl,200,0.005,200,5081,13,3000x5,10
-medium_frequency_high_skl,medium_frequency,high_skl,500,0.005,200,5081,13,3000x5,10
+medium_frequency_low_skl,medium_frequency,low_skl,20,0.005,200,2044,12,3000x5,10
+medium_frequency_medium_skl,medium_frequency,medium_skl,200,0.005,200,2044,12,3000x5,10
+medium_frequency_high_skl,medium_frequency,high_skl,500,0.005,200,2044,12,3000x5,10
 high_frequency_low_skl,high_frequency,low_skl,20,0.04,25,22000,131,3000x5,10
 high_frequency_medium_skl,high_frequency,medium_skl,200,0.04,25,22000,131,3000x5,10
 high_frequency_high_skl,high_frequency,high_skl,500,0.04,25,22000,131,3000x5,10
