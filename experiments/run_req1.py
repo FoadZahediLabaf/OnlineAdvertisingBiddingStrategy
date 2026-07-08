@@ -178,6 +178,55 @@ def compute_req1_benchmarks(
     return float(ucb1_benchmark), float(budgeted_benchmark)
 
 
+def compute_full_horizon_regret(
+    total_reward: float,
+    benchmark_reward_per_round: float,
+    horizon: int,
+) -> float:
+    """Compute regret over the full horizon, including rounds after early stopping.
+
+    Raw experiment rows contain only real auction interactions. If an algorithm
+    stops before the horizon because the budget is depleted, the missing rounds
+    must still count in the final regret comparison against the T-round
+    benchmark.
+    """
+    if horizon <= 0:
+        raise ValueError("horizon must be positive")
+
+    benchmark_total_reward = float(horizon) * float(benchmark_reward_per_round)
+    return float(benchmark_total_reward - float(total_reward))
+
+
+def add_full_horizon_regret_summary_columns(
+    rows: List[Dict[str, Any]],
+    benchmark_reward_per_round: float,
+    horizon: int,
+) -> List[Dict[str, Any]]:
+    """Add final full-horizon regret metadata to the last real row only.
+
+    This keeps the raw trajectory clean: no fake stopped-round rows are added.
+    The notebook can read these final columns from the last row of each run.
+    """
+    if not rows:
+        return rows
+
+    total_reward = float(rows[-1]["cumulative_reward"])
+    rounds_played = int(rows[-1]["round"])
+    full_horizon_regret = compute_full_horizon_regret(
+        total_reward=total_reward,
+        benchmark_reward_per_round=benchmark_reward_per_round,
+        horizon=horizon,
+    )
+    missing_rounds_after_stop = max(0, int(horizon) - rounds_played)
+
+    rows[-1]["full_horizon_regret"] = full_horizon_regret
+    rows[-1]["average_full_horizon_regret"] = full_horizon_regret / float(horizon)
+    rows[-1]["missing_rounds_after_stop"] = missing_rounds_after_stop
+    rows[-1]["stopped_early"] = bool(rounds_played < horizon)
+
+    return rows
+
+
 def load_req1_config(config_path: Path = CONFIG_PATH) -> Dict[str, Any]:
     """Load Requirement 1 parameters from the YAML config file."""
     if not config_path.exists():
@@ -212,7 +261,9 @@ def run_algorithm(
         max_competing_bid=max_competing_bid,
         random_seed=random_seed,
     )
-    env.reset()
+    initial_state = env.reset()
+    if bool(initial_state["done"]):
+        return []
 
     rows: List[Dict[str, Any]] = []
     cumulative_reward = 0.0
@@ -221,6 +272,8 @@ def run_algorithm(
 
     for _ in range(horizon):
         action = learner.select_action()
+        if float(action) > env.budget_left:
+            break
         outcome = env.step(action)
 
         reward = float(outcome["reward"])
@@ -229,10 +282,9 @@ def run_algorithm(
         cumulative_reward += reward
         cumulative_cost += cost
 
-        # Update the learner using the originally selected action, not the
-        # environment's effective/clipped bid. The learner's action set is the
-        # discrete bid set, while outcome["action"] may be clipped by the
-        # remaining budget and therefore may not belong to that discrete set.
+        # Update the learner using the selected discrete bid. The environment
+        # no longer clips bids, so this action is the same bid used to compute
+        # reward and cost.
         if algorithm_name == "budgeted_ucb":
             learner.update(action=action, reward=reward, cost=cost)
         else:
@@ -260,13 +312,21 @@ def run_algorithm(
                 "highest_competing_bid": outcome["info"]["highest_competing_bid"],
                 "done": outcome["done"],
                 "effective_bid": outcome["action"],
+                "full_horizon_regret": np.nan,
+                "average_full_horizon_regret": np.nan,
+                "missing_rounds_after_stop": np.nan,
+                "stopped_early": np.nan,
             }
         )
 
         if outcome["done"]:
             break
 
-    return rows
+    return add_full_horizon_regret_summary_columns(
+        rows=rows,
+        benchmark_reward_per_round=benchmark_reward_per_round,
+        horizon=horizon,
+    )
 
 
 def save_algorithm_results(rows: List[Dict[str, Any]], output_path: Path) -> Path:
@@ -329,6 +389,7 @@ def main() -> None:
         actions=bids,
         horizon=horizon,
         initial_budget=initial_budget,
+        random_seed=random_seed,
     )
     budgeted_ucb_rows = run_algorithm(
         algorithm_name="budgeted_ucb",

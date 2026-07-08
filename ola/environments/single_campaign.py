@@ -49,6 +49,7 @@ class SingleCampaignEnvironment(BaseEnvironment):
         self.rng = np.random.default_rng(random_seed)
         self.current_round = 0
         self.budget_left = self.initial_budget
+        self.minimum_budget_to_continue = 0.0
 
 
     def reset(self) -> Dict[str, Any]:
@@ -56,45 +57,50 @@ class SingleCampaignEnvironment(BaseEnvironment):
         self.current_round = 0
         self.budget_left = self.initial_budget  
         self.rng = np.random.default_rng(self.random_seed)
-        return{
+        return {
             "round": self.current_round,
             "budget_left": self.budget_left,
-            "done": False,
+            "done": self.budget_left <= self.minimum_budget_to_continue,
             "info": {
                 "value": self.value,
                 "horizon": self.horizon,
                 "min_competing_bid": self.min_competing_bid,
                 "max_competing_bid": self.max_competing_bid,
+                "minimum_budget_to_continue": self.minimum_budget_to_continue,
             },
-            
         }
         
     def step(self, action: Any) -> Dict[str, Any]:
         """Execute one first-price auction round."""
         if self.current_round >= self.horizon:
             raise RuntimeError("Cannot call step() after the horizon is reached. call reset() first")
+        if self.budget_left <= self.minimum_budget_to_continue:
+            raise RuntimeError("Cannot call step() after the campaign has stopped because the budget is depleted. call reset() first")
         bid = float(action)
 
-        if bid <0:
+        if bid < 0:
             raise ValueError("Bid must be non-negative.")
-        
-        effective_bid = min(bid, self.budget_left)
-        highest_competing_bid = float(self.rng.uniform(self.min_competing_bid,self.max_competing_bid))
-        win = int(effective_bid >= highest_competing_bid)
-        reward = float(self.value - effective_bid )if win else 0.0
-        cost = float(effective_bid) if win else 0.0
+        if bid > self.budget_left:
+            raise ValueError("Bid cannot exceed the remaining budget.")
+        if bid > 1.0:
+            raise ValueError("Bid cannot exceed 1.0 in the normalized auction setting.")
+
+        highest_competing_bid = float(self.rng.uniform(self.min_competing_bid, self.max_competing_bid))
+        win = int(bid >= highest_competing_bid)
+        reward = float(self.value - bid) if win else 0.0
+        cost = float(bid) if win else 0.0
 
         self.budget_left = max(self.budget_left - cost, 0.0)
         self.current_round += 1
-        done = self.current_round >= self.horizon or self.budget_left <= 0.0
+        done = self.current_round >= self.horizon or self.budget_left <= self.minimum_budget_to_continue
 
         # In Requirement 1, bids and wins are scalar values because there is only
         # one campaign. Future multi-campaign environments may return lists or
         # arrays for these fields while keeping the same output structure.
         return {
             "round": self.current_round,
-            "action": effective_bid,
-            "bids": effective_bid,
+            "action": bid,
+            "bids": bid,
             "wins": win,
             "reward": reward,
             "cost": cost,

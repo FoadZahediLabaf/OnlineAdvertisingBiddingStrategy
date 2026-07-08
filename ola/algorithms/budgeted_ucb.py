@@ -15,7 +15,7 @@ Do not:
     - Change result/output formats here.
 """
 
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 import numpy as np
 
 
@@ -25,15 +25,17 @@ class BudgetedUCB:
 
     In Requirement 1, each action is one possible bid. The learner first tries
     each affordable bid once, then estimates both reward and cost for each bid,
-    builds reward UCBs, solves the budgeted LP using empirical cost estimates,
-    and samples one bid from the resulting distribution.
+    builds reward UCBs using the current round t, uses empirical costs for
+    practical budget pacing, solves the budgeted LP, and samples one bid from
+    the resulting distribution.
     """
 
     def __init__(
             self,
             actions: Sequence[float],
             horizon: int,
-            initial_budget: float,) -> None:
+            initial_budget: float,
+            random_seed: Optional[int] = None,) -> None:
 
         if len(actions)==0:
             raise ValueError("Must have at least one action.")  
@@ -50,11 +52,12 @@ class BudgetedUCB:
         self.total_rewards = np.zeros(self.n_actions, dtype=float)
         self.total_costs = np.zeros(self.n_actions, dtype=float)
         self.t = 0
-        self.rng = np.random.default_rng(0)
+        self.random_seed = random_seed
+        self.rng = np.random.default_rng(random_seed)
 
     def select_action(self) -> Any:
         """Select one bid by solving the optimistic budgeted LP and sampling."""
-        if self.budget_left <= 0:
+        if self.budget_left <= 0.0:
             return 0.0
 
         remaining_rounds = max(1, self.horizon - self.t)
@@ -68,15 +71,14 @@ class BudgetedUCB:
         empirical_costs = self.total_costs / np.maximum(1, self.counts)
         current_round = self.t + 1
         confidence_widths = np.sqrt(
-            0.1225 * np.log(current_round) / np.maximum(1, self.counts)
+            2.0 * np.log(current_round) / np.maximum(1, self.counts)
         )
 
         reward_ucbs = empirical_rewards + confidence_widths
-        cost_estimates = empirical_costs
 
         distribution = self._solve_optimistic_budgeted_lp(
             reward_ucbs=reward_ucbs,
-            cost_estimates=cost_estimates,
+            cost_estimates=empirical_costs,
             budget_per_remaining_round=budget_per_remaining_round,
         )
 
@@ -96,7 +98,7 @@ class BudgetedUCB:
 
         The LP is:
             maximize    sum_b gamma_b reward_ucb(b)
-            subject to  sum_b gamma_b cost_estimate(b) <= budget_per_remaining_round
+            subject to  sum_b gamma_b empirical_cost(b) <= budget_per_remaining_round
                         sum_b gamma_b = 1
                         gamma_b >= 0
 
