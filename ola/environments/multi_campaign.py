@@ -126,15 +126,19 @@ class MultiCampaignEnvironment(BaseEnvironment):
         if not is_feasible_campaign_set(active_campaigns, self.conflict_graph):
             raise ValueError("Campaign set is infeasible: two or more selected campaigns are non-compatible.")
 
-        # Scale bids proportionally if their sum exceeds budget_left.
-        effective_bids = np.zeros(self.number_of_campaigns)
+        # The learner is responsible for respecting the budget. The environment
+        # does NOT silently rescale the requested bids: if their sum exceeds the
+        # remaining budget we raise so the action is rejected as infeasible.
         total_requested = float(sum(bids_for_active))
-        if total_requested <= self.budget_left or total_requested == 0.0:
-            scale = 1.0
-        else:
-            scale = self.budget_left / total_requested
+        if total_requested > self.budget_left + BID_SET_TOLERANCE:
+            raise ValueError(
+                "Requested bids exceed remaining budget: "
+                f"sum(bids)={total_requested} > budget_left={self.budget_left}."
+            )
+
+        effective_bids = np.zeros(self.number_of_campaigns)
         for i, b_i in zip(active_campaigns, bids_for_active):
-            effective_bids[i] = float(b_i) * scale
+            effective_bids[i] = float(b_i)
 
         highest_competing_bids = np.clip(
             self.rng.multivariate_normal(self.mean_competing_bids, self.covariance_matrix),
@@ -163,8 +167,10 @@ class MultiCampaignEnvironment(BaseEnvironment):
         self.current_round += 1
         done = self.current_round >= self.horizon or self.budget_left <= 0.0
 
-        # Bandit feedback: only reward and cost are exposed for learning.
-        # Realized competing bids go in info["debug"] for visualization only.
+        # Semi-bandit feedback: for each played campaign the learner observes its
+        # win/loss (and hence the realized per-arm reward and cost), but never the
+        # rival bid m_i. The realized competing bids are returned only in
+        # info["debug"] for visualization, not for learning.
         return {
             "round": self.current_round,
             "action": action,

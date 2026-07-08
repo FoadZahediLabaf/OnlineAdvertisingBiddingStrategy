@@ -43,6 +43,7 @@ class CombinatorialUCB:
         horizon: int,
         conflict_edges: Optional[List[List[int]]] = None,
         random_seed: Optional[int] = None,
+        exploration_coefficient: float = 0.5,
     ) -> None:
         if number_of_campaigns <= 0:
             raise ValueError("number_of_campaigns must be positive.")
@@ -54,12 +55,15 @@ class CombinatorialUCB:
             raise ValueError("Budget must be non-negative.")
         if horizon <= 0:
             raise ValueError("Horizon must be positive.")
+        if exploration_coefficient <= 0:
+            raise ValueError("exploration_coefficient must be positive.")
 
         self.number_of_campaigns = int(number_of_campaigns)
         self.campaign_values = np.array(campaign_values, dtype=float)
         self.bid_values = np.array(sorted(bid_values), dtype=float)
         self.budget = float(budget)
         self.horizon = int(horizon)
+        self.exploration_coefficient = float(exploration_coefficient)
         self.conflict_edges: List[List[int]] = (
             list(conflict_edges) if conflict_edges else []
         )
@@ -104,7 +108,18 @@ class CombinatorialUCB:
             return unplayed_action
 
         denominator = np.maximum(self.n_pulls, 1.0)
-        confidence_widths = np.sqrt(2.0 * np.log(self.horizon) / denominator)
+        # Exploration bonus w = c * sqrt(2 * log(t) / N). Two changes vs the
+        # textbook sqrt(2 * log(T) / N): (1) log of the current round t instead
+        # of the fixed horizon T, so the bonus grows slowly rather than staying
+        # at the worst-case constant; (2) a tunable exploration coefficient c.
+        # With N = 55 arms and small reward scale the textbook bonus is too large
+        # relative to the reward gaps, so the learner never leaves the
+        # exploration phase within T = 1000. c < 1 shrinks the bonus so the agent
+        # converges to the best feasible super-arm inside the problem horizon.
+        log_term = np.log(max(self.t, 2))
+        confidence_widths = self.exploration_coefficient * np.sqrt(
+            2.0 * log_term / denominator
+        )
         ucb_reward = self.mean_reward + confidence_widths
         lcb_cost = np.maximum(self.mean_cost - confidence_widths, 0.0)
 
