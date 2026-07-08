@@ -25,9 +25,11 @@ campaigns:
   # genuinely combinatorial instance where feasible super-arms are pairs and
   # singletons, so per-campaign UCB is not equivalent to Combinatorial-UCB.
   number_of_campaigns: 5
+  # Values are equal so campaign choice is driven by market cost, not by
+  # different item values.
   values: [1.0, 1.0, 1.0, 1.0, 1.0]
-  # Budget tuned so the advertiser wins ~1/4 of the auctions it enters and the
-  # budget is used almost in full, depleting close to the horizon (not early).
+  # Budget tuned so the learner uses almost all resources by the horizon
+  # without stopping early.
   initial_budget: 850.0
 
 bids:
@@ -43,14 +45,14 @@ conflict_graph:
 
 environment:
   # Joint distribution over highest competing bids: multivariate Gaussian
-  # clipped to [0, 1]. Mean 0.5 reflects the standard equilibrium bid in a
-  # first-price auction with value 1; std 0.1 keeps the signal stable
-  # enough for the CUCB to learn.
+  # clipped to [0, 1]. Campaigns have different market competitiveness:
+  # lower means are cheaper to win, while higher means are more expensive.
+  # The best compatible pair should therefore emerge from cost differences.
   # Covariance structure is built automatically from the conflict graph:
   # campaigns connected by an edge share advertisers, so their competing
   # bids are positively correlated (correlation_on_edge * variance).
   # The covariance matrix is regularized to be positive semidefinite.
-  mean_competing_bids: [0.5, 0.5, 0.5, 0.5, 0.5]
+  mean_competing_bids: [0.44, 0.58, 0.48, 0.60, 0.56]
   std_competing_bids: 0.1
   correlation_on_edge: 0.8
 
