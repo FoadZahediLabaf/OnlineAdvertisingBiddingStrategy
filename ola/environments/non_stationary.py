@@ -16,35 +16,38 @@ Do not:
 """
 
 # Design notes:
-#    This environment is built starting from the Requirement 3 adversarial
-#    environment (``ola/environments/adversarial.py``). It reuses the same useful
-#    idea of pre-computing the whole sequence of highest competing bids once at
-#    construction time, deterministically given the seeds, so that every algorithm
-#    can be compared on the *exact same* realisation.
-
 #    The feedback model is different as the one seen in requirement 3, here 
 #    we can't assume full feedback, but instead we must deal with bandit feedback. 
 #    The learner will observe only the set of won auctions and the resulting reward/cost.
 #    Still, the realised highest competing bids are available as a pre-computed sequence 
-#    and mirrored under ``info["debug"]``. But nonetheless, the adaptive CUCB learners
-#    must not use them. 
+#    info["debug"]. But nonetheless, the adaptive CUCB learners must not use them.
+#    This information are only accessed by the change detection algorithm, only if the 
+#    selected detector is Normal Discrepancy; which is outside the scope of the requirement
+#    4 assignment, so we decided, out of curiosity, to implement a third option with full-feedback.
+#    In this last case, the full-feedback approach is exploited by both the detector algorithm
+#    and the UCB estimates.
 
 #    The key difference required by Requirement 4 is the "slightly" non-stationary
 #    structure: rounds are partitioned into a small number of fixed intervals,
 #    each interval keeps a fixed distribution, and each interval uses a different
 #    distribution. The distribution of every interval is drawn from a Gaussian 
-#    constellation generated with the tools in ``ola/utils/constellation``: 
+#    constellation generated with the tools in ola/utils/constellation: 
 #    note that the pairwise symmetric-KL divergence is controlled, so the difference 
-#    between intervals is tunable.
+#    between intervals can be tuned.
 
-#    The interaction interface mirrors the Requirement 2 ``MultiCampaignEnvironment``
+#    The interaction interface mirrors the Requirement 2 MultiCampaignEnvironment
 #    so that the sliding-window / change-detector CUCB learners (which subclass the
 #    Req 2 Combinatorial-UCB) run unchanged. 
 
-#    For convenience the ``step`` method also accepts a plain per-campaign bid vector 
+#    For convenience the step method also accepts a plain per-campaign bid vector 
 #    (the Req 3 action format), so the primal-dual learner can submit its actions to 
 #    the very same environment. Note that this only concerns the action format: the 
 #    feedback returned is the bandit feedback described above, the same for every learner.
+#    Unsed feature at the end of the algorithm, never submitted this option to the environment.
+
+#    It's also been implemented a replay mode which takes as input a pre-computed dataset so that every algorithm
+#    can be run on the exact same realization and it is not required to re-generate the same
+#    thing over and over again, checking that the realized outcome is the same. 
 
 from __future__ import annotations
 
@@ -66,11 +69,17 @@ BID_SET_TOLERANCE = 1e-9
 
 class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
     """Slightly non-stationary multi-campaign auction environment.
-    Rounds are partitioned into ``number_of_intervals`` consecutive intervals.
+    In the classic case, rounds are partitioned into number_of_intervals consecutive intervals.
     Within an interval the highest competing bids are sampled i.i.d. from a fixed
     joint distribution (a multivariate Gaussian clipped to [0, 1]); each
     interval uses a different Gaussian taken from a controlled constellation.
-    """
+
+    The environment supports two modes:
+    - GENERATE mode (default): the highest-competing-bid sequence is sampled from
+      the Gaussian constellation as described above.
+    - REPLAY mode: when competing_bid_sequence is passed, that pre-computed
+      (horizon, number_of_campaigns) matrix is replayed exactly and the
+      constellation / sampling machinery is bypassed."""
 
     # Remember: the values below are used by default, if during the invocation of the constructor these parameters
     # are specified, their specified values override the ones seen below. If the constructor, on the other hand, 
@@ -78,22 +87,24 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
     def __init__(
         self,
         number_of_campaigns: int = 3,
-        campaign_values: Optional[Sequence[float]] = None,                      # Winning values for each campaign
-        bid_values: Optional[Sequence[float]] = None,                           # Set of allowd bid values.
+        campaign_values: Optional[Sequence[float]] = None,                          # Winning values for each campaign
+        bid_values: Optional[Sequence[float]] = None,                               # Set of allowed bid values.
         budget: float = 500.0,
         horizon: int = 1000,    
-        number_of_intervals: int = 4,                                           # Number of intervals in which the horizon is partitioned. Expose different probability distributions of the highest competing bids.
-        interval_lengths: Optional[Sequence[int]] = None,                       # Used if the length of the intervals are to be fixed explicitly.
-        conflict_edges: Optional[Sequence[Sequence[int]]] = None,               # Conflict graph between campaigns.
-        target_skl: float = 2.0,                                                # Defines how much the various distributions differ from one another.
-        skl_range: Optional[Tuple[float, float]] = None,                        # Exploit a range of SKL divergences instead of a singel fixed value.
-        constellation: Optional[Sequence[Tuple[np.ndarray, np.ndarray]]] = None,# Manually provided constellation of gaussians for the intervals, optional. Each element should be a pair (mu/mean, sigma/covariance matrix).
-        constellation_seed: Optional[int] = None,                               # Seed used for generating constellation, use for reproducibility.
+        number_of_intervals: int = 4,                                               # Number of intervals in which the horizon is partitioned. Expose different probability distributions of the highest competing bids.
+        interval_lengths: Optional[Sequence[int]] = None,                           # Used if the length of the intervals are to be fixed explicitly.
+        conflict_edges: Optional[Sequence[Sequence[int]]] = None,                   # Conflict graph between campaigns.
+        target_skl: float = 2.0,                                                    # Defines how much the various distributions differ from one another.
+        skl_range: Optional[Tuple[float, float]] = None,                            # Exploit a range of SKL divergences instead of a singel fixed value.
+        constellation: Optional[Sequence[Tuple[np.ndarray, np.ndarray]]] = None,    # Manually provided constellation of gaussians for the intervals, optional. Each element should be a pair (mu/mean, sigma/covariance matrix).
+        constellation_seed: Optional[int] = None,                                   # Seed used for generating constellation, use for reproducibility.
         constellation_max_iter: int = 5000,
         max_std: float = 0.1,
         clip_low: float = 0.0,
         clip_high: float = 1.0,
-        random_seed: Optional[int] = None,                                      # Seed used for the random generation of competing bids, use for reproducibility.
+        random_seed: Optional[int] = None,                                          # Seed used for the random generation of competing bids, use for reproducibility.
+        competing_bid_sequence: Optional[np.ndarray] = None,                        # Optional pre-computed (horizon, number_of_campaigns) matrix of highest competing bids.
+        phase_ids: Optional[Sequence[int]] = None,                                  # Optional per-round regime id (length horizon), only used together with competing_bid_sequence for regime markers / oracle. If omitted the whole run is treated as a single phase.
     ) -> None:
         # Default checks that mirror the Req 2 multi-campaign environment.
         if campaign_values is None:
@@ -124,7 +135,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
         if clip_low >= clip_high:
             raise ValueError("clip_low must be strictly smaller than clip_high.")
 
-        # Assing the parameters to the actual variables after the checks have passed.
+        # Assigne the parameters to the actual variables after the checks have passed.
         self.number_of_campaigns = int(number_of_campaigns)
         self.campaign_values = np.asarray(campaign_values, dtype=float)
         self.bid_values = np.asarray(sorted(bid_values), dtype=float)
@@ -152,40 +163,101 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
             edges=[tuple(e) for e in self.conflict_edges],
         )
 
-        # Construct the actual interval lengths (and number of intervals) of the environmet by invoking the related method with the parameters obtained.
-        self.interval_lengths = self._build_interval_lengths(
-            number_of_intervals=int(number_of_intervals),
-            interval_lengths=interval_lengths,
-        )
-        self.number_of_intervals = len(self.interval_lengths)
-        
-        # interval_boundaries[k] = first round (0-based) of interval k;
-        # an extra trailing entry equal to the horizon closes the last interval.
-        # So, computes the starting round of each interval.
-        self.interval_boundaries = np.concatenate(
-            ([0], np.cumsum(self.interval_lengths))
-        ).astype(int)
-
-        # Build the constellation of gaussians which will be used for the various intervals.
-        self.constellation = self._build_constellation(constellation)
-
         # Set the random number generator using the provided seed.
         self.rng = np.random.default_rng(self.random_seed)
-        # Create a matrix to store all the highest competing bids for each round and campaign.
-        self.highest_competing_bids = np.zeros(
-            (self.horizon, self.number_of_campaigns), dtype=float
-        )
-        # Create a vector to store the interval index for each round.
-        self.phase_ids = np.zeros(self.horizon, dtype=int)
 
-        # Fill the highest_competing_bids and phase_ids matrices sampling from the constellation generated.
-        self._generate_sequence()
+        if competing_bid_sequence is not None:
+            # REPLAY MODE
+            # A pre-computed sequence of highest competing bids is injected and
+            # replayed exactly. The constellation / per-round sampling machinery
+            # is bypassed entirely.
+            self._init_from_sequence(competing_bid_sequence, phase_ids)
+        else:
+            # GENERATE MODE (default)
+            # Construct the actual interval lengths (and number of intervals) of the environmet
+            # by invoking the related method with the parameters obtained.
+            self.interval_lengths = self._build_interval_lengths(
+                number_of_intervals=int(number_of_intervals),
+                interval_lengths=interval_lengths,
+            )
+            self.number_of_intervals = len(self.interval_lengths)
+
+            # interval_boundaries[k] = first round (0-based) of interval k;
+            # an extra trailing entry equal to the horizon closes the last interval.
+            # So, computes the starting round of each interval.
+            self.interval_boundaries = np.concatenate(
+                ([0], np.cumsum(self.interval_lengths))
+            ).astype(int)
+
+            # Build the constellation of gaussians which will be used for the various intervals.
+            self.constellation = self._build_constellation(constellation)
+
+            # Create a matrix to store all the highest competing bids for each round and campaign.
+            self.highest_competing_bids = np.zeros(
+                (self.horizon, self.number_of_campaigns), dtype=float
+            )
+            # Create a vector to store the interval index for each round.
+            self.phase_ids = np.zeros(self.horizon, dtype=int)
+
+            # Fill the highest_competing_bids and phase_ids matrices sampling from the generated constellation.
+            self._generate_sequence()
 
         # Reset the environment to the initial state, granting the possibility to re-use the exact same scenario
         # with different algorithm multiple times.
         self.reset()
 
     # CONSTRUCTORS HELPERS CALLED DURING INITIALIZATION.
+
+    def _init_from_sequence(
+        self,
+        competing_bid_sequence: np.ndarray,
+        phase_ids: Optional[Sequence[int]],
+    ) -> None:
+        """REPLAY-mode initialisation from a pre-computed competing-bid sequence.
+        Validates the injected (horizon, number_of_campaigns) matrix, stores
+        it as the highest-competing-bid sequence, and derives the interval /
+        phase metadata from phase_ids (or a single phase when it is omitted)."""
+        sequence = np.asarray(competing_bid_sequence, dtype=float)
+        if sequence.shape != (self.horizon, self.number_of_campaigns):
+            raise ValueError(
+                "competing_bid_sequence must have shape "
+                f"(horizon, number_of_campaigns) = ({self.horizon}, "
+                f"{self.number_of_campaigns}); got {sequence.shape}. "
+                "Pass matching horizon and number_of_campaigns."
+            )
+        if not np.all(np.isfinite(sequence)):
+            raise ValueError("competing_bid_sequence contains non-finite values.")
+
+        # Defensive clip to the competing-bid box (the shared realizations are
+        # already in [0, 1], so this is normally a no-op).
+        self.highest_competing_bids = np.clip(sequence, self.clip_low, self.clip_high)
+        # No constellation is generated in replay mode, so set it to None.
+        self.constellation = None
+
+        # If the phase_ids are provided, validate them and compute the metadata of the intervals,
+        # otherwise consider a single phase for the whole run.
+        if phase_ids is not None:
+            phases = np.asarray([int(p) for p in phase_ids], dtype=int)
+            if phases.shape != (self.horizon,):
+                raise ValueError(
+                    "phase_ids must have length horizon "
+                    f"({phases.shape[0]} != {self.horizon})."
+                )
+            self.phase_ids = phases
+            # Interval metadata = contiguous runs of equal phase id (the change
+            # points of the injected schedule), so plots / oracles can use them.
+            change_points = np.where(np.diff(phases) != 0)[0] + 1
+            self.interval_boundaries = np.concatenate(
+                ([0], change_points, [self.horizon])
+            ).astype(int)
+            self.interval_lengths = np.diff(self.interval_boundaries).astype(int)
+            self.number_of_intervals = len(self.interval_lengths)
+        else:
+            # No regime information supplied: treat the whole run as one phase.
+            self.phase_ids = np.zeros(self.horizon, dtype=int)
+            self.interval_lengths = np.array([self.horizon], dtype=int)
+            self.interval_boundaries = np.array([0, self.horizon], dtype=int)
+            self.number_of_intervals = 1
 
     def _build_interval_lengths(
         self,
@@ -196,8 +268,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
         If explicit lengths are given they must be positive and sum to the
         horizon. Otherwise, if the interval lengths are not given, the 
         horizon is split as evenly as possible, with any remainder assigned 
-        to the earliest intervals.
-        """
+        to the earliest intervals."""
         # If the interval lengths are explicitly provided, use them to create the interval lenghts vector.
         if interval_lengths is not None:
             lengths = np.asarray([int(x) for x in interval_lengths], dtype=int)
@@ -213,7 +284,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
             # If the checks are passed, return the interval lengths vector, with the values explicitly provided.
             return lengths
 
-        # If the interval lengths are not specified, divide as evenly as possible the time horizon among the number of intervals .
+        # If the interval lengths are not specified, divide as evenly as possible the time horizon among the number of intervals.
         # Divide the horizon into equal parts, and then compute the remainder which will be assigned to the first intervals.
         base = self.horizon // number_of_intervals
         remainder = self.horizon % number_of_intervals
@@ -231,10 +302,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
         The couples are (mean vector, covariance matrix) of the Gaussian distribution.
         When an explicit constellation is supplied it is validated and used
         as it is. Otherwise, the constellation is generated with the builder from
-        ola.utils.constellation.
-        By doing this we are sure that every pair of interval distributions has 
-        a controlled symmetric-KL divergence.
-        """
+        ola.utils.constellation."""
         # Save the dimension of each Gaussians distribution. It must be equal to the number of campaigns. If we have
         # 3 campaigns, we need to have a 3-dimensional Gaussian distribution: accordingly the Gaussian should have
         # a mean vector of 3 elements and a covariance matrix which is 3x3.
@@ -342,8 +410,8 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
 
     def evaluate_bids(
         self,
-        bids: Sequence[float],
-        highest_competing_bids: np.ndarray,
+        bids: Sequence[float],                              # Sequence of bids for each campaign.
+        highest_competing_bids: np.ndarray,                 # Array of the highest competing bids for the current round.
         active_campaigns: Optional[Sequence[int]] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute per-campaign wins, rewards and costs for a full bid vector.
@@ -388,9 +456,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
         """Reset round/budget counters. The competing-bid sequence is preserved.
         The pre-computed sequence is intentionally not regenerated so that
         several learners can be compared on the exact same non-stationary
-        realisation.
-        Useful for comparing sliding window with change detector and primal-dual.
-        """
+        realisation."""
         # Reset to the initial values the variables we want to modify another time with a different algorithm.
         self.current_round = 0
         self.budget_left = self.initial_budget
@@ -416,11 +482,11 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
 
     def step(self, action: Any) -> Dict[str, Any]:
         """Execute one non-stationary multi-campaign first-price auction round.
-        The possible actions are either a super-arm dictionary, for CUCB learners (regarding
-        algorithm 2 but in particular sliding window and change detector algorithms),
+        The possible actions are either a super-arm dictionary, for CUCB learners,
         or a N-length per-campaign bid vector (used for requirement 3 primal-dual action format algorithm).
         Useful in the case of using both req 3 and req 4 algorithms with the same environment.
-        """
+        At the end, we opted for generating externally the realizations and not submit directly the algorithms
+        to the same environment. But still since it's harmless it is left as is."""
         # If the environment is consumed (budget depleted or horizon terminated), return an error.
         if self.done:
             raise RuntimeError(
@@ -428,10 +494,12 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
             )
 
         # First of all, invoke the _normalise_action in order to normalise to a standard format the input received.
-        # Standard formato used is: active_campaigns + effective_bids.
+        # Standard format used is: active_campaigns + effective_bids.
         active_campaigns, effective_bids = self._normalise_action(action)
 
-        # Scale bids proportionally if their total exceeds the remaining budget, to satisfy yhe budget requirement.
+        # Scale bids proportionally if their total exceeds the remaining budget, to satisfy the budget requirement. 
+        # Redundant because the learners don't ever submit bids that exceed the budget. Problem solved at the root, but
+        # left here as added safety check.
         total_requested = float(effective_bids.sum())
         if total_requested > self.budget_left and total_requested > 0.0:
             effective_bids = effective_bids * (self.budget_left / total_requested)
@@ -475,9 +543,9 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
                 "active_campaigns": list(active_campaigns),
                 "campaign_values": self.campaign_values.tolist(),
                 "phase_id": phase,
-                # NOTE: even if the highest competing bids are returned, they must not be used by the learners of requirement 4. 
-                # The full-feedback is allowed only for requirement 3 algorithm. Only purpose here is for debug, plotting, ... 
-                # Also, the phase itself should not be used directly by the learners; they shouldn't directly know the change points of the distributions.
+                # NOTE: even if the highest competing bids are returned, they must not be used by the SW/CUSUM learners of requirement 4. 
+                # The full-feedback information are allowed only for requirement 3 algorithm, and it is used for the Normal Discrepancy
+                # algorithm which lies outside the scope of the requirement 4 assignment.
                 "debug": {
                     "highest_competing_bids": competing_bids.tolist(),
                 },
@@ -491,12 +559,12 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
     ) -> Tuple[List[int], np.ndarray]:
         """Convert any supported action (either req 3 or req 2/4) into (active_campaigns, bid_vector).
         bid_vector always has length N but with zeros on inactive campaigns.
-        """
+        Abandoned: the idea to submit different algorithms to the same environment was abandoned, but still left as is since it is harmless."""
 
         # Check whether the action is from a req 4 learner, which is in a form of a dictionary, and invoke the normalising method accordingly.
         if isinstance(action, dict):
             return self._normalise_superarm(action)
-        # If the action format is not a dictionary, it comes from a req 2 learner so invoke the alternative method.
+        # If the action format is not a dictionary, it comes from a req 3 learner so invoke the alternative method.
         return self._normalise_bid_vector(action)
 
     def _normalise_superarm(
@@ -525,7 +593,7 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
             if not self._is_in_bid_set(b):
                 raise ValueError("Bid must belong to the discrete bid set.")
             
-        # Check whether the active campaigns satisfy the conlifct graph constraints or not. 
+        # Check whether the active campaigns satisfy the conflict graph constraints or not. 
         if not is_feasible_campaign_set(active_campaigns, self.conflict_graph):
             raise ValueError(
                 "Campaign set is infeasible: two or more selected campaigns "
@@ -539,7 +607,8 @@ class NonStationaryMultiCampaignEnvironment(BaseEnvironment):
         return active_campaigns, bid_vector
 
     def _normalise_bid_vector(self, action: Any) -> Tuple[List[int], np.ndarray]:
-        """Validate a N-length per-campaign bid vector (related to Req 3 format)."""
+        """Validate a N-length per-campaign bid vector (related to Req 3 format).
+        Never really used since the idea to submit req 3 algorithms to the same environment was discarded."""
         # Define the bid vector as an array of float, given action, and flatten it.
         bid_vector = np.asarray(action, dtype=float).reshape(-1)
         # If the shape of the defined bid vector is different from the number of campaigns, return an error.
