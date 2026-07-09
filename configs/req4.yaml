@@ -16,43 +16,113 @@
 #   - Change parameter names without updating experiments/run_req4.py.
 
 experiment:
-  name: req4_slightly_non_stationary
-  random_seed: 42
-  horizon: 1000
+  name: req4_sliding_window_skl
+  # 16 intervals over a horizon of 4000 (even split -> 250 rounds per interval).
+  horizon: 4000
+  # Independent repetitions per SKL level. Each repetition uses a different
+  # constellation seed (different Gaussians) and a different sampling seed
+  # (different realised competing-bid sequence), so the std bands reflect both
+  # sources of randomness.
+  number_of_repetitions: 20
+  # Master seed; the per-(skl, repetition) seeds are derived deterministically
+  # from it, so the whole experiment is reproducible.
+  base_seed: 42
 
 campaigns:
-  number_of_campaigns: 3
-  values: [1.0, 1.0, 1.0]
-  initial_budget: 500.0
+  number_of_campaigns: 5
+  # One value per campaign (value of winning the slot).
+  values: [1.0, 1.0, 1.0, 1.0, 1.0]
+  # Budget kept "quite high" so it does not bind: rho = B / T = 8000 / 4000 = 2.0. 
+  initial_budget: 8000.0
 
 bids:
   # Shared discrete bid set used for each campaign.
   values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 conflict_graph:
-  # Each pair means the two campaigns cannot be selected together.
-  edges: []
+  # 5-cycle (pentagon) conflict graph over campaigns 0..4: two campaigns conflict
+  # iff they are adjacent on the cycle. The forbidden (conflict) edges are the 5
+  # cycle edges below.
+  #
+  # The feasible super-arms (independent sets) are exactly:
+  #   the empty set, 5 singletons, and 5 non-adjacent pairs
+  #   ({0,2},{0,3},{1,3},{1,4},{2,4}); NO triples are feasible.
+  # Candidate super-arms per round = 5*11 + 5*11^2 = 660.
+  edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]]
 
 environment:
-  # Rounds are partitioned into intervals.
-  # Each interval can have a different stochastic distribution.
-  number_of_intervals: 4
-  distribution_type: piecewise_stationary_placeholder
-  min_competing_bid: 0.0
-  max_competing_bid: 1.0
+  # Rounds are partitioned into intervals; each interval keeps a fixed
+  # distribution of highest competing bids, and each interval is a different
+  # Gaussian taken from a controlled constellation.
+  number_of_intervals: 16
+  # The three non-stationarity levels to compare. Larger SKL => the per-interval
+  # distributions are further apart => "more" non-stationary.
+  skl_values: [20.0, 200.0, 500.0]
+  # Spectral bound on the Gaussian covariances of the constellation.
+  max_std: 0.1
+  # Gradient-descent iterations for the constellation builder.
+  constellation_max_iter: 5000
+  clip_low: 0.0
+  clip_high: 1.0
 
 sliding_window_cucb:
+  # default window size: null -> round(sqrt(horizon)) = round(sqrt(4000)) = 63.
   window_size: null
+  exploration_coefficient: 0.1
 
+# Change-detector (CUSUM) CUCB parameters, consumed by experiments/run_req4_cd.py.
+# The detector monitors the per-arm win indicator (Bernoulli), so one
+# (epsilon, threshold) pair is fair across all bid magnitudes.
 change_detector_cucb:
-  detection_threshold: null
-  minimum_samples: null
+  # Maximum number of distribution changes expected over the horizon T. The CUSUM
+  # warmup window M, detection threshold h and forced-exploration probability alpha
+  # are derived from U_T and T in experiments/run_req4_cd.py via the standard
+  # CUSUM-UCB formulas:
+  #   M     = int(log(T / U_T))
+  #   h     = 2 * log(T / U_T)
+  #   alpha = sqrt(U_T * log(T / U_T) / T)
+  # With number_of_intervals = 3 there are 2 true change points, so U_T = 2.
+  U_T: 2
+  # Per-step CUSUM slack; must exceed the in-regime noise so a
+  # stable arm does not drift up. Must be in (0, 1). Kept explicit (not derived).
+  cusum_epsilon: 0.1
+  # Exploration-bonus scale. Kept explicit (not derived).
+  exploration_coefficient: 0.25
+  # What to forget on a detected change: "per_arm" resets only the firing arm,
+  # "global" restarts every arm.
+  reset_mode: per_arm
+  # Which change detector to use:
+  #   "cusum"            -> per-arm CUSUM on the win indicator (pure bandit feedback).
+  #   "nd_full_feedback" -> joint Normal Discrepancy on the competing-bid vectors.
+  detector_type: cusum
+  # ND sliding-window length in rounds (only used by nd_full_feedback).
+  nd_window_size: 50
+  # ND alarm threshold (only used by nd_full_feedback).
+  nd_threshold: 3.0
 
 comparison:
-  include_primal_dual: true
+  include_primal_dual: false
 
+# Outputs for the SLIDING-WINDOW experiment (experiments/run_req4.py).
 outputs:
-  results_dir: results
-  sliding_window_results_file: results/req4_sliding_window.csv
-  change_detector_results_file: results/req4_change_detector.csv
-  three_way_comparison_file: results/req4_3way_comparison.csv
+  raw_results_file: results/raw/req4_sw_cucb.csv
+  cumulative_regret_plot: results/plots/req4_cumulative_regret.png
+  cumulative_reward_plot: results/plots/req4_cumulative_reward.png
+  cumulative_cost_plot: results/plots/req4_cumulative_cost.png
+
+# Outputs for the CD experiment (experiments/run_req4_cd.py).
+# Kept on separate paths so the two runners never overwrite each other.
+outputs_cd:
+  raw_results_file: results/raw/req4_cd_cucb.csv
+  cumulative_regret_plot: results/plots/req4_cd_cumulative_regret.png
+  cumulative_reward_plot: results/plots/req4_cd_cumulative_reward.png
+  cumulative_cost_plot: results/plots/req4_cd_cumulative_cost.png
+  detected_changes_plot: results/plots/req4_cd_detected_changes.png
+  # Per-arm detection heatmap (campaign x bid, one panel per SKL) and the same
+  # counts as a long-format matrix CSV.
+  detections_per_arm_plot: results/plots/req4_cd_detections_per_arm.png
+  detections_per_arm_matrix: results/raw/req4_cd_detections_per_arm.csv
+  # Change-detection delay: per-change-point records (CSV) and a per-SKL bar plot
+  # of the mean rounds between a true change and its first detection.
+  detection_delay_matrix: results/raw/req4_cd_detection_delays.csv
+  detection_delay_plot: results/plots/req4_cd_detection_delay.png
