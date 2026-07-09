@@ -28,6 +28,8 @@ class SingleCampaignEnvironment(BaseEnvironment):
         horizon: int=100,
         min_competing_bid:  float = 0,
         max_competing_bid: float = 1.0,
+        competing_bid_distribution: str = "uniform",
+        n_competitors: int = 3,
         random_seed: Optional[int] = None,
     ) -> None:
         if value < 0:
@@ -39,12 +41,22 @@ class SingleCampaignEnvironment(BaseEnvironment):
         if min_competing_bid < 0:
             raise ValueError("Minimum competing bid must be non-negative.")
         if max_competing_bid < min_competing_bid:
-            raise ValueError("Maximum competing bid must be greater than minimum competing bid.")   
+            raise ValueError("Maximum competing bid must be greater than minimum competing bid.")
+        allowed_distributions = {"uniform", "max_uniform"}
+        if str(competing_bid_distribution) not in allowed_distributions:
+            raise ValueError(
+                "competing_bid_distribution must be one of "
+                f"{sorted(allowed_distributions)}."
+            )
+        if int(n_competitors) <= 0:
+            raise ValueError("n_competitors must be positive.")
         self.value = float(value)
         self.initial_budget = float(initial_budget)
         self.horizon = int(horizon)
         self.min_competing_bid = float(min_competing_bid)
         self.max_competing_bid = float(max_competing_bid)
+        self.competing_bid_distribution = str(competing_bid_distribution)
+        self.n_competitors = int(n_competitors)
         self.random_seed = random_seed
         self.rng = np.random.default_rng(random_seed)
         self.current_round = 0
@@ -66,6 +78,8 @@ class SingleCampaignEnvironment(BaseEnvironment):
                 "horizon": self.horizon,
                 "min_competing_bid": self.min_competing_bid,
                 "max_competing_bid": self.max_competing_bid,
+                "competing_bid_distribution": self.competing_bid_distribution,
+                "n_competitors": self.n_competitors,
                 "minimum_budget_to_continue": self.minimum_budget_to_continue,
             },
         }
@@ -85,7 +99,17 @@ class SingleCampaignEnvironment(BaseEnvironment):
         if bid > 1.0:
             raise ValueError("Bid cannot exceed 1.0 in the normalized auction setting.")
 
-        highest_competing_bid = float(self.rng.uniform(self.min_competing_bid, self.max_competing_bid))
+        if self.competing_bid_distribution == "uniform":
+            highest_competing_bid = float(self.rng.uniform(self.min_competing_bid, self.max_competing_bid))
+        elif self.competing_bid_distribution == "max_uniform":
+            competitor_bids = self.rng.uniform(
+                self.min_competing_bid,
+                self.max_competing_bid,
+                size=self.n_competitors,
+            )
+            highest_competing_bid = float(np.max(competitor_bids))
+        else:
+            raise RuntimeError("Unsupported competing bid distribution.")
         win = int(bid >= highest_competing_bid)
         reward = float(self.value - bid) if win else 0.0
         cost = float(bid) if win else 0.0
@@ -108,7 +132,9 @@ class SingleCampaignEnvironment(BaseEnvironment):
             "done": done,
             "info": {
                 "requested_bid": bid,
-                "highest_competing_bid": highest_competing_bid,     
+                "highest_competing_bid": highest_competing_bid,
                 "value": self.value,
+                "competing_bid_distribution": self.competing_bid_distribution,
+                "n_competitors": self.n_competitors,
             },
         }
