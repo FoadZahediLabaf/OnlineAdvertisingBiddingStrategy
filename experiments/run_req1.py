@@ -24,16 +24,56 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from ola.algorithms.ucb_variants import (
+    UCB1Tuned,
+    ExpectedRewardScaledUCB,
+    BudgetedUCB1Tuned,
+    BudgetedExpectedRewardScaledUCB,
+)
 from ola.algorithms.budgeted_ucb import BudgetedUCB
 from ola.algorithms.ucb1 import UCB1
 from ola.environments.single_campaign import SingleCampaignEnvironment
 from ola.utils.logging import save_results
 from ola.utils.plotting import generate_standard_req1_plots, load_result_csvs
 
-
+BUDGETED_ALGORITHM_NAMES = {
+    "budgeted_ucb",
+    "budgeted_ucb1_tuned",
+    "budgeted_expected_reward_scaled_ucb",
+}
 
 CONFIG_PATH = PROJECT_ROOT / "configs" / "req1.yaml"
 PLOTS_DIR = PROJECT_ROOT / "results" / "plots"
+
+
+def expected_win_probability(
+    bid: float,
+    min_competing_bid: float,
+    max_competing_bid: float,
+    competing_bid_distribution: str = "uniform",
+    n_competitors: int = 3,
+) -> float:
+    """Compute P(m <= bid) for the configured highest competing bid model."""
+    if max_competing_bid < min_competing_bid:
+        raise ValueError("max_competing_bid must be >= min_competing_bid")
+
+    if bid < min_competing_bid:
+        base_probability = 0.0
+    elif bid >= max_competing_bid:
+        base_probability = 1.0
+    else:
+        support_width = max_competing_bid - min_competing_bid
+        if support_width == 0.0:
+            base_probability = 1.0
+        else:
+            base_probability = (bid - min_competing_bid) / support_width
+
+    if competing_bid_distribution == "uniform":
+        return float(base_probability)
+    if competing_bid_distribution == "max_uniform":
+        return float(base_probability ** int(n_competitors))
+
+    raise ValueError(f"Unknown competing_bid_distribution: {competing_bid_distribution}")
 
 
 def expected_reward_for_uniform_competing_bid(
@@ -41,46 +81,45 @@ def expected_reward_for_uniform_competing_bid(
     value: float,
     min_competing_bid: float,
     max_competing_bid: float,
+    competing_bid_distribution: str = "uniform",
+    n_competitors: int = 3,
 ) -> float:
-    """Compute E[(value - bid) 1[bid >= m]] for m uniformly distributed."""
-    if max_competing_bid < min_competing_bid:
-        raise ValueError("max_competing_bid must be >= min_competing_bid")
+    """Compute expected first-price reward for the configured bid model.
 
-    if bid < min_competing_bid:
-        win_probability = 0.0
-    elif bid >= max_competing_bid:
-        win_probability = 1.0
-    else:
-        support_width = max_competing_bid - min_competing_bid
-        if support_width == 0.0:
-            win_probability = 1.0
-        else:
-            win_probability = (bid - min_competing_bid) / support_width
-
-    return (value - bid) * win_probability
+    The function name is kept for notebook compatibility. With
+    competing_bid_distribution="uniform", this is the original uniform model.
+    With competing_bid_distribution="max_uniform", the highest competing bid is
+    the maximum of n_competitors independent uniform competitor bids.
+    """
+    win_probability = expected_win_probability(
+        bid=bid,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    return float((value - bid) * win_probability)
 
 
 def expected_cost_for_uniform_competing_bid(
     bid: float,
     min_competing_bid: float,
     max_competing_bid: float,
+    competing_bid_distribution: str = "uniform",
+    n_competitors: int = 3,
 ) -> float:
-    """Compute E[bid 1[bid >= m]] for m uniformly distributed."""
-    if max_competing_bid < min_competing_bid:
-        raise ValueError("max_competing_bid must be >= min_competing_bid")
+    """Compute expected first-price cost for the configured bid model.
 
-    if bid < min_competing_bid:
-        win_probability = 0.0
-    elif bid >= max_competing_bid:
-        win_probability = 1.0
-    else:
-        support_width = max_competing_bid - min_competing_bid
-        if support_width == 0.0:
-            win_probability = 1.0
-        else:
-            win_probability = (bid - min_competing_bid) / support_width
-
-    return bid * win_probability
+    The function name is kept for notebook compatibility.
+    """
+    win_probability = expected_win_probability(
+        bid=bid,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    return float(bid * win_probability)
 
 
 def compute_budgeted_lp_benchmark(
@@ -144,6 +183,8 @@ def compute_req1_benchmarks(
     horizon: int,
     min_competing_bid: float,
     max_competing_bid: float,
+    competing_bid_distribution: str = "uniform",
+    n_competitors: int = 3,
 ) -> Tuple[float, float]:
     """Compute non-budgeted and budget-feasible per-round benchmarks for Req 1."""
     if horizon <= 0:
@@ -155,6 +196,8 @@ def compute_req1_benchmarks(
             value=value,
             min_competing_bid=min_competing_bid,
             max_competing_bid=max_competing_bid,
+            competing_bid_distribution=competing_bid_distribution,
+            n_competitors=n_competitors,
         )
         for bid in bids
     ]
@@ -165,6 +208,8 @@ def compute_req1_benchmarks(
             bid=float(bid),
             min_competing_bid=min_competing_bid,
             max_competing_bid=max_competing_bid,
+            competing_bid_distribution=competing_bid_distribution,
+            n_competitors=n_competitors,
         )
         for bid in bids
     ]
@@ -251,6 +296,8 @@ def run_algorithm(
     min_competing_bid: float,
     max_competing_bid: float,
     benchmark_reward_per_round: float,
+    competing_bid_distribution: str = "uniform",
+    n_competitors: int = 3,
 ) -> List[Dict[str, Any]]:
     """Run one learner in the single-campaign environment."""
     env = SingleCampaignEnvironment(
@@ -259,6 +306,8 @@ def run_algorithm(
         horizon=horizon,
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
         random_seed=random_seed,
     )
     initial_state = env.reset()
@@ -285,11 +334,10 @@ def run_algorithm(
         # Update the learner using the selected discrete bid. The environment
         # no longer clips bids, so this action is the same bid used to compute
         # reward and cost.
-        if algorithm_name == "budgeted_ucb":
+        if algorithm_name in BUDGETED_ALGORITHM_NAMES:
             learner.update(action=action, reward=reward, cost=cost)
         else:
             learner.update(action=action, reward=reward)
-
         benchmark_reward = float(benchmark_reward_per_round)
         instant_regret = benchmark_reward - reward
         cumulative_regret += instant_regret
@@ -310,6 +358,8 @@ def run_algorithm(
                 "instant_regret": instant_regret,
                 "cumulative_regret": cumulative_regret,
                 "highest_competing_bid": outcome["info"]["highest_competing_bid"],
+                "competing_bid_distribution": competing_bid_distribution,
+                "n_competitors": n_competitors,
                 "done": outcome["done"],
                 "effective_bid": outcome["action"],
                 "full_horizon_regret": np.nan,
@@ -358,6 +408,8 @@ def main() -> None:
     bids = np.array(bids_config["values"], dtype=float)
     min_competing_bid = float(environment_config["min_competing_bid"])
     max_competing_bid = float(environment_config["max_competing_bid"])
+    competing_bid_distribution = environment_config.get("competing_bid_distribution", "uniform")
+    n_competitors = int(environment_config.get("n_competitors", 3))
 
     ucb1_benchmark, budgeted_ucb_benchmark = compute_req1_benchmarks(
         bids=bids,
@@ -366,6 +418,8 @@ def main() -> None:
         horizon=horizon,
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
     )
 
     ucb1 = UCB1(actions=bids, horizon=horizon)
@@ -379,18 +433,22 @@ def main() -> None:
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
         benchmark_reward_per_round=ucb1_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
     )
     ucb1_path = save_algorithm_results(
         ucb1_rows,
         Path(outputs_config["ucb1_results_file"]),
     )
 
+    learner_random_seed = random_seed + 1_000_003  # decorrelated stream, distinct from env's RNG
+
     budgeted_ucb = BudgetedUCB(
-        actions=bids,
-        horizon=horizon,
-        initial_budget=initial_budget,
-        random_seed=random_seed,
-    )
+            actions=bids,
+            horizon=horizon,
+            initial_budget=initial_budget,
+            random_seed=learner_random_seed,
+        )
     budgeted_ucb_rows = run_algorithm(
         algorithm_name="budgeted_ucb",
         learner=budgeted_ucb,
@@ -401,13 +459,115 @@ def main() -> None:
         min_competing_bid=min_competing_bid,
         max_competing_bid=max_competing_bid,
         benchmark_reward_per_round=budgeted_ucb_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
     )
     budgeted_ucb_path = save_algorithm_results(
         budgeted_ucb_rows,
         Path(outputs_config["budgeted_ucb_results_file"]),
     )
+    ucb1_tuned = UCB1Tuned(actions=bids, horizon=horizon)
+    ucb1_tuned_rows = run_algorithm(
+        algorithm_name="ucb1_tuned",
+        learner=ucb1_tuned,
+        value=value,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=ucb1_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    ucb1_tuned_path = save_algorithm_results(
+        ucb1_tuned_rows,
+        Path(outputs_config["ucb1_tuned_results_file"]),
+    )
 
-    combined_results = load_result_csvs([ucb1_path, budgeted_ucb_path])
+    # ucb1_benchmark IS max(expected_reward(b) for b in bids) already -- no
+    # need to recompute it separately for this variant.
+    expected_reward_scaled_ucb = ExpectedRewardScaledUCB(
+        actions=bids,
+        horizon=horizon,
+        max_expected_reward=ucb1_benchmark,
+    )
+    expected_reward_scaled_ucb_rows = run_algorithm(
+        algorithm_name="expected_reward_scaled_ucb",
+        learner=expected_reward_scaled_ucb,
+        value=value,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=ucb1_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    expected_reward_scaled_ucb_path = save_algorithm_results(
+        expected_reward_scaled_ucb_rows,
+        Path(outputs_config["expected_reward_scaled_ucb_results_file"]),
+    )
+
+    budgeted_ucb1_tuned_seed = random_seed + 2_000_003  # own decorrelated stream
+    budgeted_ucb1_tuned = BudgetedUCB1Tuned(
+        actions=bids,
+        horizon=horizon,
+        initial_budget=initial_budget,
+        random_seed=budgeted_ucb1_tuned_seed,
+    )
+    budgeted_ucb1_tuned_rows = run_algorithm(
+        algorithm_name="budgeted_ucb1_tuned",
+        learner=budgeted_ucb1_tuned,
+        value=value,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=budgeted_ucb_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    budgeted_ucb1_tuned_path = save_algorithm_results(
+        budgeted_ucb1_tuned_rows,
+        Path(outputs_config["budgeted_ucb1_tuned_results_file"]),
+    )
+
+    budgeted_expected_reward_scaled_ucb_seed = random_seed + 3_000_003  # distinct stream
+    budgeted_expected_reward_scaled_ucb = BudgetedExpectedRewardScaledUCB(
+        actions=bids,
+        horizon=horizon,
+        initial_budget=initial_budget,
+        max_expected_reward=ucb1_benchmark,
+        random_seed=budgeted_expected_reward_scaled_ucb_seed,
+    )
+    budgeted_expected_reward_scaled_ucb_rows = run_algorithm(
+        algorithm_name="budgeted_expected_reward_scaled_ucb",
+        learner=budgeted_expected_reward_scaled_ucb,
+        value=value,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        random_seed=random_seed,
+        min_competing_bid=min_competing_bid,
+        max_competing_bid=max_competing_bid,
+        benchmark_reward_per_round=budgeted_ucb_benchmark,
+        competing_bid_distribution=competing_bid_distribution,
+        n_competitors=n_competitors,
+    )
+    budgeted_expected_reward_scaled_ucb_path = save_algorithm_results(
+        budgeted_expected_reward_scaled_ucb_rows,
+        Path(outputs_config["budgeted_expected_reward_scaled_ucb_results_file"]),
+    )
+    combined_results = load_result_csvs([
+        ucb1_path,
+        budgeted_ucb_path,
+        ucb1_tuned_path,
+        expected_reward_scaled_ucb_path,
+        budgeted_ucb1_tuned_path,
+        budgeted_expected_reward_scaled_ucb_path,
+    ])
     generate_standard_req1_plots(combined_results, plots_dir=PLOTS_DIR)
 
     print("Req 1 experiments completed.")
