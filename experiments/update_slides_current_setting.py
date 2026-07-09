@@ -25,6 +25,7 @@ from experiments.run_req3_on_shared_realizations import (  # noqa: E402
     run_factorized_primal_dual_trial,
 )
 from experiments.piecewise_static_oracle import (  # noqa: E402
+    solve_fixed_mixture_opt_a,
     solve_piecewise_static_oracle,
 )
 
@@ -106,13 +107,25 @@ def load_and_run_all():
                 allowed_campaign_sets=config.get("allowed_campaign_sets"),
                 conflict_edges=config.get("conflict_edges"),
             )
+            opt_a = solve_fixed_mixture_opt_a(
+                market_matrix=market_matrix,
+                bid_set=BID_SET,
+                values=VALUES,
+                budget=BUDGET,
+                allowed_campaign_sets=config.get("allowed_campaign_sets"),
+                conflict_edges=config.get("conflict_edges"),
+            )
             regret = oracle["cumulative_utility"] - result["cumulative_utility"]
+            opt_a_regret = opt_a["cumulative_utility"] - result["cumulative_utility"]
             compact = {
                 "cumulative_utility": result["cumulative_utility"],
                 "cumulative_cost": result["cumulative_cost"],
                 "cumulative_oracle_utility": oracle["cumulative_utility"],
                 "cumulative_oracle_cost": oracle["cumulative_cost"],
                 "regret": regret,
+                "cumulative_opt_a_utility": opt_a["cumulative_utility"],
+                "cumulative_opt_a_cost": opt_a["cumulative_cost"],
+                "opt_a_regret": opt_a_regret,
                 "remaining_budget": result["remaining_budgets"],
                 "lambda_dual": result["lambdas"],
                 "mean_bid": result["chosen_actions"].mean(axis=1),
@@ -132,6 +145,9 @@ def load_and_run_all():
                     "final_oracle_utility": float(oracle["cumulative_utility"][-1]),
                     "final_oracle_cost": float(oracle["cumulative_cost"][-1]),
                     "final_regret": float(regret[-1]),
+                    "final_opt_a_utility": float(opt_a["cumulative_utility"][-1]),
+                    "final_opt_a_cost": float(opt_a["cumulative_cost"][-1]),
+                    "final_opt_a_regret": float(opt_a_regret[-1]),
                     "budget_left": float(result["remaining_budgets"][-1]),
                     "mean_bid": float(result["chosen_actions"].mean()),
                     "mean_positive_bids_per_round": float(
@@ -161,6 +177,9 @@ def load_and_run_all():
         oracle_utility = data["cumulative_oracle_utility"][:, -1]
         oracle_cost = data["cumulative_oracle_cost"][:, -1]
         regret = data["regret"][:, -1]
+        opt_a_utility = data["cumulative_opt_a_utility"][:, -1]
+        opt_a_cost = data["cumulative_opt_a_cost"][:, -1]
+        opt_a_regret = data["opt_a_regret"][:, -1]
         budget_left = data["remaining_budget"][:, -1]
         summary_rows.append(
             {
@@ -180,6 +199,12 @@ def load_and_run_all():
                 "oracle_cost_std": float(oracle_cost.std(ddof=1)),
                 "regret_mean": float(regret.mean()),
                 "regret_std": float(regret.std(ddof=1)),
+                "opt_a_utility_mean": float(opt_a_utility.mean()),
+                "opt_a_utility_std": float(opt_a_utility.std(ddof=1)),
+                "opt_a_cost_mean": float(opt_a_cost.mean()),
+                "opt_a_cost_std": float(opt_a_cost.std(ddof=1)),
+                "opt_a_regret_mean": float(opt_a_regret.mean()),
+                "opt_a_regret_std": float(opt_a_regret.std(ddof=1)),
                 "budget_left_mean": float(budget_left.mean()),
                 "budget_left_max": float(budget_left.max()),
                 "n_change_points": len(cfg["change_points"]),
@@ -487,6 +512,59 @@ def plot_high_frequency_spectrum():
     return save_figure(fig, "high_frequency_spectrum.png")
 
 
+def plot_regime_schedule_overview():
+    fig, axes = plt.subplots(3, 1, figsize=(11, 4.8), sharex=True, sharey=True)
+    for ax, freq in zip(axes, FREQ_ORDER):
+        config = json.loads((MATRIX_DIR / f"{freq}_medium_skl" / "config.json").read_text(encoding="utf-8"))
+        phase_ids = np.load(MATRIX_DIR / f"{freq}_medium_skl" / "streams.npz")["phase_ids"]
+        ax.step(np.arange(T), phase_ids, where="post", color=f"#{BLUE}", linewidth=1.6)
+        ax.set_ylabel(FREQ_LABELS[freq].replace(" ", "\n"), fontsize=8)
+        ax.set_yticks([0, 1, 2])
+        ax.set_ylim(-0.3, 2.3)
+        ax.grid(alpha=0.2)
+        ax.text(
+            1.01,
+            0.5,
+            f"{len(config['change_points'])} changes",
+            transform=ax.transAxes,
+            va="center",
+            fontsize=9,
+            color=f"#{MUTED}",
+        )
+    axes[-1].set_xlabel("Round")
+    fig.suptitle("Saved regime schedules at medium sKL (same matrix protocol)", fontweight="bold")
+    fig.tight_layout()
+    return save_figure(fig, "regime_schedule_overview.png")
+
+
+def plot_opt_a_regret_comparison(runs, setting_id="medium_frequency_medium_skl"):
+    data = runs[setting_id]
+    rounds = np.arange(1, T + 1)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4), sharex=True)
+
+    comparisons = [
+        ("Piecewise hindsight oracle", data["regret"], PURPLE),
+        ("OPT-A fixed-mixture oracle", data["opt_a_regret"], TEAL),
+    ]
+    for ax, (title, values, color) in zip(axes, comparisons):
+        mean = values.mean(axis=0)
+        sd = values.std(axis=0, ddof=1)
+        ax.plot(rounds, mean, color=f"#{color}", linewidth=2.1)
+        ax.fill_between(rounds, mean - sd, mean + sd, color=f"#{color}", alpha=0.16)
+        ax.axhline(0.0, color="black", linestyle=":", linewidth=1)
+        ax.set_title(title, fontweight="bold")
+        ax.set_xlabel("Round")
+        ax.set_ylabel("Cumulative regret")
+        ax.grid(alpha=0.22)
+    cfg = data["config"]
+    fig.suptitle(
+        f"Two clairvoyant regret baselines for {FREQ_LABELS[cfg['frequency_label']]} / {SKL_LABELS[cfg['skl_label']]}",
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    return save_figure(fig, "opt_a_regret_comparison.png")
+
+
 def clear_slide(slide):
     tree = slide.shapes._spTree
     for shape in list(slide.shapes):
@@ -575,6 +653,10 @@ def move_slide(prs, old_index, new_index):
     slide_id = prs.slides._sldIdLst[old_index]
     prs.slides._sldIdLst.remove(slide_id)
     prs.slides._sldIdLst.insert(new_index, slide_id)
+
+
+def hide_slide(prs, index):
+    prs.slides._sldIdLst[index].set("show", "0")
 
 
 def renumber_slides(prs):
@@ -701,7 +783,7 @@ def rebuild_deck(runs, summary, assets):
     add_card(slide, 3.7, 1.5, 2.7, 1.35, "2. Schedule", "Bernoulli changes", TEAL, "p = 1/1500, 1/200, 1/25")
     add_card(slide, 6.65, 1.5, 2.7, 1.35, "3. Realization", "m_t in [0,1]^5", ORANGE, "One vector for every round")
     add_card(slide, 9.6, 1.5, 2.7, 1.35, "4. Input", "Saved matrix", GREEN, "Loaded by the learner")
-    add_picture(slide, assets["high_spectrum"], 0.85, 3.15, 11.7, 3.35)
+    add_picture(slide, assets["schedule"], 0.85, 3.15, 11.7, 3.35)
 
     # Slide 8: setup.
     slide = prs.slides[7]
@@ -800,8 +882,10 @@ def rebuild_deck(runs, summary, assets):
 
     # Slide 17.
     slide = prs.slides[16]
-    rebuild_slide(slide, 17, "High-frequency realized market spectrum", "The same realization index is shown for sKL 20, 200, and 500 at p=1/25.")
-    add_picture(slide, assets["high_spectrum"], 0.75, 1.35, 11.85, 5.65)
+    rebuild_slide(slide, 17, "Two clairvoyant regret baselines", "Piecewise hindsight remains the main comparison; OPT-A is the fixed-mixture adversarial benchmark.")
+    add_picture(slide, assets["opt_a"], 0.85, 1.45, 11.65, 4.7)
+    add_box(slide, 0.85, 6.25, 11.65, 0.58, fill=PALE, line="D9E2EC")
+    add_text(slide, 1.05, 6.34, 11.25, 0.42, "OPT-A solves one LP after observing the full sequence: maximize average reward under average cost <= B/T, then evaluates that fixed randomized action over time.", size=10.5, bold=True, color=BLUE, align=PP_ALIGN.CENTER)
 
     # Slides 18-20: sKL diagnostics at medium frequency.
     for slide_idx, skl, number in zip([17, 18, 19], SKL_ORDER, [18, 19, 20]):
@@ -856,6 +940,11 @@ def rebuild_deck(runs, summary, assets):
     add_text(slide, 1.05, 4.18, 11.1, 1.05, "The factorized primal-dual learner remains budget-feasible on every shared realization. Regret is computed against the exact piecewise-static hindsight oracle under the same feasible super-arm set and B=2500 global budget. Final utility and regret both vary materially with sKL.", size=15)
     add_text(slide, 1.05, 5.35, 11.1, 0.32, "The same oracle definition and matrix files must be used for sliding-window and change-detector comparisons.", size=13, bold=True, color=BLUE)
 
+    hidden = prs.slides[-1]
+    rebuild_slide(hidden, len(prs.slides), "Hidden: high-frequency realized market spectrum", "Kept for reference, hidden from the presentation.")
+    add_picture(hidden, assets["high_spectrum"], 0.75, 1.35, 11.85, 5.65)
+    hide_slide(prs, len(prs.slides) - 1)
+
     from repair_slide_typography import repair_presentation
 
     repair_presentation(prs)
@@ -884,6 +973,8 @@ def main():
         "distribution": plot_final_utility_distribution(runs),
         "profiles": plot_constellation_profiles(),
         "high_spectrum": plot_high_frequency_spectrum(),
+        "schedule": plot_regime_schedule_overview(),
+        "opt_a": plot_opt_a_regret_comparison(runs),
         "summary_skl": plot_summary_axis(runs, "skl"),
         "summary_frequency": plot_summary_axis(runs, "frequency"),
     }

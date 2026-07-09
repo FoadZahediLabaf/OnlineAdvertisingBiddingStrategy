@@ -5,7 +5,7 @@ from __future__ import annotations
 from itertools import product
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, milp
+from scipy.optimize import Bounds, LinearConstraint, linprog, milp
 from scipy.sparse import coo_matrix
 
 
@@ -57,6 +57,73 @@ def _build_feasible_actions(campaigns, bids, allowed_campaign_sets):
     return np.unique(np.asarray(actions, dtype=float), axis=0)
 
 
+def _action_utility_and_cost(candidate_actions, market, campaign_values):
+    wins = candidate_actions[:, None, :] >= market[None, :, :]
+    utility = ((campaign_values - candidate_actions)[:, None, :] * wins).sum(axis=2)
+    cost = (candidate_actions[:, None, :] * wins).sum(axis=2)
+    return utility, cost
+
+
+def solve_fixed_mixture_opt_a(
+    market_matrix,
+    bid_set,
+    values,
+    budget,
+    allowed_campaign_sets=None,
+    conflict_edges=None,
+):
+    """Best fixed randomized feasible action in hindsight.
+
+    This is the adversarial clairvoyant comparator often denoted OPT-A. After
+    observing the full reward/cost sequence, it chooses one fixed distribution
+    over feasible actions whose average cost is at most rho = B / T.
+    """
+    market = np.asarray(market_matrix, dtype=float)
+    bids = np.asarray(bid_set, dtype=float)
+    campaign_values = np.asarray(values, dtype=float)
+    horizon, campaigns = market.shape
+    conflict_edges = [tuple(edge) for edge in (conflict_edges or [])]
+    allowed_campaign_sets = _normalise_allowed_campaign_sets(
+        campaigns,
+        allowed_campaign_sets,
+        conflict_edges,
+    )
+    candidate_actions = _build_feasible_actions(campaigns, bids, allowed_campaign_sets)
+    utilities, costs = _action_utility_and_cost(candidate_actions, market, campaign_values)
+    average_utility = utilities.mean(axis=1)
+    average_cost = costs.mean(axis=1)
+    rho = float(budget) / float(horizon)
+
+    result = linprog(
+        c=-average_utility,
+        A_ub=average_cost[None, :],
+        b_ub=np.array([rho]),
+        A_eq=np.ones((1, candidate_actions.shape[0])),
+        b_eq=np.array([1.0]),
+        bounds=[(0.0, None)] * candidate_actions.shape[0],
+        method="highs",
+    )
+    if not result.success:
+        raise RuntimeError(f"OPT-A LP failed: {result.message}")
+
+    probabilities = np.maximum(result.x, 0.0)
+    probabilities /= probabilities.sum()
+    utility_over_time = probabilities @ utilities
+    cost_over_time = probabilities @ costs
+    return {
+        "utility": utility_over_time,
+        "cost": cost_over_time,
+        "cumulative_utility": np.cumsum(utility_over_time),
+        "cumulative_cost": np.cumsum(cost_over_time),
+        "action_probabilities": probabilities,
+        "candidate_actions": candidate_actions,
+        "average_utility": average_utility,
+        "average_cost": average_cost,
+        "rho": rho,
+        "opt_a_value_per_round": float(-result.fun),
+    }
+
+
 def solve_piecewise_static_oracle(
     market_matrix,
     change_points,
@@ -94,13 +161,13 @@ def solve_piecewise_static_oracle(
     for window_index, (start, end) in enumerate(windows):
         observations = market[start:end]
         offset = window_index * choices
-        wins = candidate_actions[:, None, :] >= observations[None, :, :]
-        utilities[offset : offset + choices] = (
-            ((campaign_values - candidate_actions)[:, None, :] * wins).sum(axis=2)
-        ).sum(axis=1)
-        costs[offset : offset + choices] = (
-            (candidate_actions[:, None, :] * wins).sum(axis=2)
-        ).sum(axis=1)
+        action_utilities, action_costs = _action_utility_and_cost(
+            candidate_actions,
+            observations,
+            campaign_values,
+        )
+        utilities[offset : offset + choices] = action_utilities.sum(axis=1)
+        costs[offset : offset + choices] = action_costs.sum(axis=1)
 
     variable_indices = np.arange(variable_count)
     group_rows = np.repeat(np.arange(groups), choices)

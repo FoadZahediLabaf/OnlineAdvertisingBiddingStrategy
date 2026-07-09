@@ -14,7 +14,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.piecewise_static_oracle import solve_piecewise_static_oracle  # noqa: E402
+from experiments.piecewise_static_oracle import (  # noqa: E402
+    solve_fixed_mixture_opt_a,
+    solve_piecewise_static_oracle,
+)
 from ola.algorithms.primal_dual import FactorizedPrimalDualHedgeLearner  # noqa: E402
 
 
@@ -110,7 +113,16 @@ def run_one(setting_dir: Path, realization_path: Path, realization_idx: int, con
         allowed_campaign_sets=config.get("allowed_campaign_sets"),
         conflict_edges=config.get("conflict_edges"),
     )
+    opt_a = solve_fixed_mixture_opt_a(
+        market_matrix=matrix,
+        bid_set=BID_SET,
+        values=VALUES,
+        budget=BUDGET,
+        allowed_campaign_sets=config.get("allowed_campaign_sets"),
+        conflict_edges=config.get("conflict_edges"),
+    )
     regret = oracle["cumulative_utility"] - result["cumulative_utility"]
+    opt_a_regret = opt_a["cumulative_utility"] - result["cumulative_utility"]
     return {
         "setting_id": config["setting_id"],
         "frequency_label": config["frequency_label"],
@@ -124,6 +136,9 @@ def run_one(setting_dir: Path, realization_path: Path, realization_idx: int, con
         "final_oracle_utility": float(oracle["cumulative_utility"][-1]),
         "final_oracle_cost": float(oracle["cumulative_cost"][-1]),
         "final_regret": float(regret[-1]),
+        "final_opt_a_utility": float(opt_a["cumulative_utility"][-1]),
+        "final_opt_a_cost": float(opt_a["cumulative_cost"][-1]),
+        "final_opt_a_regret": float(opt_a_regret[-1]),
         "budget_left": float(result["remaining_budgets"][-1]),
         "mean_bid": float(result["chosen_actions"].mean()),
         "mean_positive_bids_per_round": float((result["chosen_actions"] > 0).sum(axis=1).mean()),
@@ -160,6 +175,9 @@ def main():
             "oracle_utility": np.array([row["final_oracle_utility"] for row in group]),
             "oracle_cost": np.array([row["final_oracle_cost"] for row in group]),
             "regret": np.array([row["final_regret"] for row in group]),
+            "opt_a_utility": np.array([row["final_opt_a_utility"] for row in group]),
+            "opt_a_cost": np.array([row["final_opt_a_cost"] for row in group]),
+            "opt_a_regret": np.array([row["final_opt_a_regret"] for row in group]),
         }
         summary_rows.append(
             {
