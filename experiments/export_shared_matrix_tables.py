@@ -8,7 +8,11 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-import xlsxwriter
+
+try:
+    import xlsxwriter
+except ModuleNotFoundError:
+    xlsxwriter = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +31,7 @@ FREQ_CODES = {
 SKL_CODES = {
     "low_skl": "S20",
     "medium_skl": "S200",
-    "high_skl": "S2000",
+    "high_skl": "S500",
 }
 
 
@@ -56,6 +60,7 @@ def collect_records():
                     "campaigns": config["number_of_campaigns"],
                     "matrix_file": str(matrix_path.relative_to(ROOT)),
                     "matrix_path": matrix_path,
+                    "setting_dir": setting_dir,
                 }
             )
     if len(records) != 90:
@@ -64,7 +69,7 @@ def collect_records():
 
 
 def export_index(records):
-    fields = [key for key in records[0] if key != "matrix_path"]
+    fields = [key for key in records[0] if key not in {"matrix_path", "setting_dir"}]
     with INDEX_PATH.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -72,20 +77,34 @@ def export_index(records):
 
 
 def export_csv_files(records):
-    header = ["round"] + [f"campaign_{campaign}" for campaign in range(10)]
     for record in records:
         matrix = np.load(record["matrix_path"])
-        if matrix.shape != (3000, 10):
+        phase_ids = np.load(record["setting_dir"] / "streams.npz")["phase_ids"]
+        expected_shape = (record["rows"], record["campaigns"])
+        if matrix.shape != expected_shape:
             raise ValueError(f"Unexpected shape {matrix.shape} in {record['matrix_path']}")
+        if phase_ids.shape != (record["rows"],):
+            raise ValueError(f"Unexpected phase_ids shape {phase_ids.shape} in {record['setting_dir']}")
+        header = ["round", "phase_id"] + [f"campaign_{campaign}" for campaign in range(record["campaigns"])]
         output = CSV_DIR / f"{record['sheet_name']}.csv"
         with output.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.writer(handle)
             writer.writerow(header)
             for round_index, values in enumerate(matrix):
-                writer.writerow([round_index, *[format(float(value), ".17g") for value in values]])
+                writer.writerow([
+                    round_index,
+                    int(phase_ids[round_index]),
+                    *[format(float(value), ".17g") for value in values],
+                ])
 
 
 def export_excel(records):
+    if xlsxwriter is None:
+        if XLSX_PATH.exists():
+            XLSX_PATH.unlink()
+        print("xlsxwriter is not installed; skipped Excel export.")
+        return
+
     workbook = xlsxwriter.Workbook(XLSX_PATH, {"constant_memory": True})
     header_format = workbook.add_format(
         {"bold": True, "font_color": "#FFFFFF", "bg_color": "#2F6DF6", "border": 1}
@@ -94,7 +113,7 @@ def export_excel(records):
     value_format = workbook.add_format({"num_format": "0.000000000000000"})
 
     index = workbook.add_worksheet("INDEX")
-    index_fields = [key for key in records[0] if key != "matrix_path"]
+    index_fields = [key for key in records[0] if key not in {"matrix_path", "setting_dir"}]
     index.write_row(0, 0, index_fields, header_format)
     for row_index, record in enumerate(records, start=1):
         index.write_row(row_index, 0, [record[field] for field in index_fields])
@@ -105,19 +124,22 @@ def export_excel(records):
     index.set_column(6, 11, 16)
     index.set_column(12, 12, 72)
 
-    headers = ["round"] + [f"campaign_{campaign}" for campaign in range(10)]
     for record in records:
         matrix = np.load(record["matrix_path"])
+        phase_ids = np.load(record["setting_dir"] / "streams.npz")["phase_ids"]
+        headers = ["round", "phase_id"] + [f"campaign_{campaign}" for campaign in range(record["campaigns"])]
         worksheet = workbook.add_worksheet(record["sheet_name"])
         worksheet.write_row(0, 0, headers, header_format)
         for round_index, values in enumerate(matrix, start=1):
             worksheet.write_number(round_index, 0, round_index - 1, integer_format)
-            for campaign, value in enumerate(values, start=1):
+            worksheet.write_number(round_index, 1, int(phase_ids[round_index - 1]), integer_format)
+            for campaign, value in enumerate(values, start=2):
                 worksheet.write_number(round_index, campaign, float(value), value_format)
         worksheet.freeze_panes(1, 1)
-        worksheet.autofilter(0, 0, 3000, 10)
+        worksheet.autofilter(0, 0, record["rows"], record["campaigns"] + 1)
         worksheet.set_column(0, 0, 10)
-        worksheet.set_column(1, 10, 19)
+        worksheet.set_column(1, 1, 10)
+        worksheet.set_column(2, record["campaigns"] + 1, 19)
     workbook.close()
 
 
