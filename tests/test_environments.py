@@ -49,7 +49,10 @@ def test_single_campaign_step_has_standard_output_keys() -> None:
     assert outcome["info"]["highest_competing_bid"] == pytest.approx(0.0)
 
 
-def test_single_campaign_caps_bid_by_remaining_budget() -> None:
+def test_single_campaign_rejects_bid_above_remaining_budget() -> None:
+    # The environment intentionally does NOT clip an over-budget bid -- callers
+    # (the learners / experiment loop) are responsible for never offering a bid
+    # above env.budget_left. See the comment in experiments/run_req1.py.
     env = SingleCampaignEnvironment(
         value=1.0,
         initial_budget=0.3,
@@ -60,12 +63,8 @@ def test_single_campaign_caps_bid_by_remaining_budget() -> None:
     )
     env.reset()
 
-    outcome = env.step(1.0)
-
-    assert outcome["action"] == pytest.approx(0.3)
-    assert outcome["cost"] == pytest.approx(0.3)
-    assert outcome["budget_left"] == pytest.approx(0.0)
-    assert outcome["done"] is True
+    with pytest.raises(ValueError, match="Bid cannot exceed the remaining budget"):
+        env.step(1.0)
 
 
 def test_single_campaign_rejects_invalid_inputs() -> None:
