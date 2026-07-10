@@ -1,0 +1,46 @@
+# Configuration file for Requirement 3.
+#
+# Owner:
+#   Mengyao
+#
+# Support:
+#   Simone may edit this file when actively helping Mengyao.
+#
+# Purpose:
+#   Store parameters for best-of-both-worlds primal-dual experiments.
+
+experiment:
+  name: req3_best_of_both_worlds
+  random_seed: 42
+  horizon: 1000
+
+campaigns:
+  number_of_campaigns: 5
+  values: [1.0, 1.0, 1.0, 1.0, 1.0]
+  initial_budget: 250.0
+  conflict_edges:
+    - [0, 1]
+    - [1, 2]
+    - [2, 3]
+    - [3, 4]
+    - [4, 0]
+
+bids:
+  values: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
+feedback:
+  type: full_feedback
+
+environment:
+  sequence_type: piecewise_gaussian
+  regime_length: 100
+  sigma_scale: 0.05
+
+algorithm:
+  learning_rate: 0.2
+  dual_learning_rate: null
+
+outputs:
+  results_dir: results
+  primal_dual_results_file: results/raw/req3_primal_dual.csv
+  plots_dir: results/plots

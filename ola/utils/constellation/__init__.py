@@ -1,4 +1,7 @@
-from ola.utils.constellation.synthetic_dataset import SyntheticDataset
+try:
+    from ola.utils.constellation.synthetic_dataset import SyntheticDataset
+except ModuleNotFoundError:
+    SyntheticDataset = None
 from ola.utils.constellation.constellation import (
     MU_LO,
     MU_HI,
