@@ -1,5 +1,17 @@
 # OLA Project
 
+## Group Members
+
+| Name | Email |
+|---|---|
+| Foad Zahedi | foad.zahedi@mail.polimi.it |
+| Simone Mauro | simone.mauro@mail.polimi.it |
+| Alessandro Sartori | alessandro2.sartori@mail.polimi.it |
+| Luigi Cavuto | luigi.cavuto@mail.polimi.it |
+| Mengyao Li | Mengyao.Li@mail.polimi.it |
+
+---
+
 ## Project Overview
 
 Online Learning Applications project.
@@ -31,6 +43,7 @@ Implement and test:
 
 - UCB1 ignoring the budget constraint
 - UCB1 extended with a budget constraint
+- Two smarter exploration variants (UCB1-Tuned and a rescaled-constant UCB), each tested both without and with the budget constraint
 
 ### Requirement 2: Multiple Campaigns, Stochastic Environment
 
@@ -93,10 +106,15 @@ The repository must stay clean and organized.
     │   ├── generate_req4_shared_realizations.py
     │   ├── export_shared_matrix_tables.py
     │   └── run_req4.py
-    └── configs/
-        ├── req1.yaml
-        ├── req2.yaml
-        └── req4.yaml
+    ├── configs/
+    │   ├── req1.yaml
+    │   ├── req2.yaml
+    │   └── req4.yaml
+    └── notebooks/
+        ├── req1_single_campaign.ipynb
+        ├── req2_multi_campaign.ipynb
+        ├── req3_primal_dual.ipynb
+        └── req4_non_stationary.ipynb
 
 ---
 
@@ -507,7 +525,7 @@ Use the file names below unless the group agrees on a different name.
 
 | Owner | Files / folders they can edit |
 |---|---|
-| Foad | Project co-lead, repository integration, Requirement 1, code reviewer for the other requirements, and final 3-way comparison: `README.md`, `CONTRIBUTING.md`, `notebooks/req1_single_campaign.ipynb`, `requirements.txt`, `.gitignore`, `ola/__init__.py`, `ola/environments/__init__.py`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/__init__.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `experiments/run_req1.py`, `configs/req1.yaml`. Foad can review Luigi's, Mengyao's, and Alessandro's code, give consultation, and make code changes only when needed and with the relevant owner's approval. |
+| Foad | Project co-lead, repository integration, Requirement 1, code reviewer for the other requirements, and final 3-way comparison: `README.md`, `CONTRIBUTING.md`, `notebooks/req1_single_campaign.ipynb`, `requirements.txt`, `.gitignore`, `ola/__init__.py`, `ola/environments/__init__.py`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/__init__.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/algorithms/ucb_variants.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `pytest.ini`, `tests/test_ucb1.py`, `tests/test_budget.py`, `tests/test_environments.py`. Foad can review Luigi's, Mengyao's, and Alessandro's code, give consultation, and make code changes only when needed and with the relevant owner's approval. |
 | Simone | Project lead, theory, coordination, master slides, and Requirement 4 theory support: `slides/notes.md`, `slides/figures/*`, final presentation material, shared report material, and theory notes for Requirement 4. Simone can also edit Req 3 and Req 4 code when helping Mengyao and Alessandro |
 | Luigi | Requirement 2 only: `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `notebooks/req2_multi_campaign.ipynb` |
 | Mengyao | Requirement 3 only: `ola/algorithms/primal_dual.py`, `experiments/run_req3_on_shared_realizations.py`, `experiments/piecewise_static_oracle.py`, `experiments/generate_req4_shared_realizations.py`, `notebooks/req3_primal_dual.ipynb`, and Req3 result/slide artifacts |
@@ -547,7 +565,7 @@ These files affect everyone. Do not edit them without telling the group first:
 Add project links here when available.
 
     GitHub repository:
-    <repository-link>
+    https://github.com/FoadZahediLabaf/ola-project
 
     Master slides:
     <slides-link>
