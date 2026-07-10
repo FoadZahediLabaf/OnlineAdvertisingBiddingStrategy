@@ -177,11 +177,11 @@ def build_expected_reward_table(
     """Per-(campaign, bid) expected reward table E_r = (value - b) * P(win | b).
 
     P(win | b) is the truncated-Gaussian marginal CDF on [0, 1]. The environment
-    instead draws competing bids from a Gaussian *clipped* to [0, 1]; the two
-    models differ only by the probability mass outside [0, 1], which for mean 0.5
-    and std 0.1 is about 3e-7 and is therefore numerically irrelevant here. The
-    same P(win) model is shared with the benchmark, so OPT^S and mu(S_t) are
-    computed consistently, as required by the pseudo-regret definition.
+    instead draws competing bids from a Gaussian *clipped* to [0, 1]. The two
+    models differ only by the probability mass outside [0, 1], which is small
+    for the configured means and std. The same P(win) model is shared with the
+    benchmark, so OPT^S and mu(S_t) are computed consistently, as required by
+    the pseudo-regret definition.
     """
     bid_grid = np.array(bid_values, dtype=float)
     number_of_campaigns = len(campaign_values)
