@@ -110,7 +110,7 @@ def test_budgeted_ucb_optimistic_lp_can_mix_two_bids() -> None:
 
     distribution = learner._solve_optimistic_budgeted_lp(
         reward_ucbs=[0.0, 0.25],
-        cost_lcbs=[0.0, 0.25],
+        cost_estimates=[0.0, 0.25],
         budget_per_remaining_round=0.1,
     )
 
@@ -124,7 +124,7 @@ def test_budgeted_ucb_optimistic_lp_ignores_bids_above_remaining_budget() -> Non
 
     distribution = learner._solve_optimistic_budgeted_lp(
         reward_ucbs=[0.0, 10.0],
-        cost_lcbs=[0.0, 0.0],
+        cost_estimates=[0.0, 0.0],
         budget_per_remaining_round=0.3,
     )
 
@@ -137,7 +137,7 @@ def test_budgeted_ucb_optimistic_lp_spreads_tied_optimal_actions() -> None:
 
     distribution = learner._solve_optimistic_budgeted_lp(
         reward_ucbs=[1.0, 1.0, 1.0],
-        cost_lcbs=[0.0, 0.0, 0.0],
+        cost_estimates=[0.0, 0.0, 0.0],
         budget_per_remaining_round=0.1,
     )
 

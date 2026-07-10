@@ -27,12 +27,18 @@ bids:
   values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 environment:
-  # Uniform distribution parameters for the highest competing bid in Req 1.
+  # Highest competing bid model for Req 1.
+  # uniform: m_t is sampled directly from Uniform[min_competing_bid, max_competing_bid].
   competing_bid_distribution: uniform
-  min_competing_bid: 0.0
-  max_competing_bid: 1.0
+  n_competitors: 2
+  min_competing_bid: 0.1
+  max_competing_bid: 0.7
 
 outputs:
   results_dir: results/raw
   ucb1_results_file: results/raw/req1_ucb1.csv
   budgeted_ucb_results_file: results/raw/req1_budgeted_ucb.csv
+  ucb1_tuned_results_file: results/raw/req1_ucb1_tuned.csv
+  expected_reward_scaled_ucb_results_file: results/raw/req1_expected_reward_scaled_ucb.csv
+  budgeted_ucb1_tuned_results_file: results/raw/req1_budgeted_ucb1_tuned.csv
+  budgeted_expected_reward_scaled_ucb_results_file: results/raw/req1_budgeted_expected_reward_scaled_ucb.csv

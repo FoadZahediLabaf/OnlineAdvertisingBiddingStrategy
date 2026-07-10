@@ -42,9 +42,9 @@ class UCB1:
             if self.counts[index] == 0:
                 return float(self.actions[index])
 
-        t = int(np.sum(self.counts)) + 1  # current round (1-indexed)
+        t = int(np.sum(self.counts)) + 1  # current round t, not fixed horizon T
         empirical_means = self.total_rewards / self.counts
-        confidence_widths = np.sqrt(2 * np.log(t) / self.counts)
+        confidence_widths = np.sqrt(2.0 * np.log(t) / self.counts)
         upper_confidence_values = empirical_means + confidence_widths
         best_index = int(np.argmax(upper_confidence_values))
         return float(self.actions[best_index])  
