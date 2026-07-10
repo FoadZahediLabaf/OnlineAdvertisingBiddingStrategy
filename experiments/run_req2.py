@@ -13,11 +13,650 @@ Do not:
     - Save final results only as screenshots.
 """
 
+from itertools import combinations, product
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+import sys
 
-def main() -> None:
-    # TODO(Luigi): load Req 2 config, initialize environment, run Combinatorial-UCB, and save results.
-    pass
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import yaml
+from scipy.optimize import linprog
+from scipy.stats import truncnorm
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ola.algorithms.combinatorial_ucb import CombinatorialUCB
+from ola.environments.multi_campaign import MultiCampaignEnvironment
+from ola.utils.graph import build_conflict_graph, is_feasible_campaign_set
+from ola.utils.logging import save_results
+from ola.utils.plotting import load_result_csvs
+
+
+CONFIG_PATH = PROJECT_ROOT / "configs" / "req2.yaml"
+PLOTS_DIR = PROJECT_ROOT / "results" / "plots"
+RAW_DIR = PROJECT_ROOT / "results" / "raw"
+
+
+def load_req2_config(config_path: Path = CONFIG_PATH) -> Dict[str, Any]:
+    """Load Requirement 2 parameters from the YAML config file."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Missing Req 2 config file: {config_path}")
+
+    with config_path.open("r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file)
+
+    if not isinstance(config, dict):
+        raise ValueError(f"Invalid Req 2 config file: {config_path}")
+
+    return config
+
+
+def compute_req2_benchmark(
+    campaign_values: List[float],
+    bid_values: List[float],
+    initial_budget: float,
+    horizon: int,
+    conflict_edges: List[List[int]],
+    mean_competing_bids: List[float],
+    std_competing_bids: float,
+    correlation_on_edge: float,
+) -> float:
+    """Compute the per-round pseudo-regret benchmark for Req 2.
+
+    Returns the per-round optimum OPT^S of the budgeted problem (see below). The
+    feasible super-arms are the sets of mutually compatible campaigns under the
+    conflict graph. Competing bids per campaign are
+    modelled as independent Gaussians with the configured mean and std,
+    truncated to [0, 1] via scipy.stats.truncnorm; correlation_on_edge is
+    accepted for signature symmetry with the environment but is not used here
+    since the marginal distribution per campaign is what drives the win
+    probability. For each (campaign, bid):
+        P(win | b) = CDF_truncnorm(b)
+        E[r | b]   = (value - b) * P(win | b)
+        E[c | b]   = b * P(win | b)
+    The benchmark is the clairvoyant OPT^S of the budgeted (Bandits-with-
+    Knapsacks) problem: the best, possibly mixed, distribution over feasible
+    super-arms whose expected per-round cost stays within the budget rate
+    rho = initial_budget / horizon, computed via a linear program over the
+    simplex. The mixed-distribution optimum is the tight per-round optimum, so
+    the resulting pseudo-regret is non-negative and monotone non-decreasing.
+    """
+    if horizon <= 0:
+        raise ValueError("horizon must be positive.")
+    if initial_budget < 0:
+        raise ValueError("initial_budget must be non-negative.")
+    if len(bid_values) == 0:
+        raise ValueError("Must have at least one bid value.")
+    number_of_campaigns = len(campaign_values)
+    if len(mean_competing_bids) != number_of_campaigns:
+        raise ValueError("mean_competing_bids length must match campaign_values.")
+    if std_competing_bids <= 0:
+        raise ValueError("std_competing_bids must be positive.")
+    del correlation_on_edge  # not used for marginal per-campaign probabilities
+
+    bids = np.array(bid_values, dtype=float)
+
+    # Per-campaign expected reward and cost under truncated Gaussian on [0, 1].
+    expected_reward = np.zeros((number_of_campaigns, len(bids)))
+    expected_cost = np.zeros((number_of_campaigns, len(bids)))
+    for i in range(number_of_campaigns):
+        mu = float(mean_competing_bids[i])
+        sigma = float(std_competing_bids)
+        a = (0.0 - mu) / sigma
+        b = (1.0 - mu) / sigma
+        win_probability = truncnorm.cdf(bids, a, b, loc=mu, scale=sigma)
+        expected_reward[i] = (float(campaign_values[i]) - bids) * win_probability
+        expected_cost[i] = bids * win_probability
+
+    # Enumerate non-empty feasible super-arms under the conflict graph.
+    conflict_graph = build_conflict_graph(
+        number_of_campaigns=number_of_campaigns,
+        edges=[tuple(e) for e in conflict_edges],
+    )
+    feasible_sets: List[frozenset] = []
+    for size in range(1, number_of_campaigns + 1):
+        for combo in combinations(range(number_of_campaigns), size):
+            if is_feasible_campaign_set(combo, conflict_graph):
+                feasible_sets.append(frozenset(combo))
+
+    rho = initial_budget / horizon
+
+    # Clairvoyant OPT^S for the budgeted problem (Bandits-with-Knapsacks): the
+    # value of the linear program
+    #     max  sum_a x_a * r_a
+    #     s.t. sum_a x_a * c_a <= rho,   sum_a x_a = 1,   x_a >= 0,
+    # i.e. the best (possibly mixed) distribution over feasible super-arms whose
+    # expected per-round cost respects the budget rate rho = B / T. The empty
+    # super-arm (r = 0, c = 0) is included so the distribution may leave budget
+    # unspent and the LP is always feasible, hence the benchmark is >= 0.
+    candidate_rewards = [0.0]
+    candidate_costs = [0.0]
+    for feasible_set in feasible_sets:
+        sorted_set = sorted(feasible_set)
+        for bid_combo in product(range(len(bids)), repeat=len(sorted_set)):
+            superarm_reward = 0.0
+            superarm_cost = 0.0
+            for position, i in enumerate(sorted_set):
+                b_idx = bid_combo[position]
+                superarm_reward += float(expected_reward[i, b_idx])
+                superarm_cost += float(expected_cost[i, b_idx])
+            candidate_rewards.append(superarm_reward)
+            candidate_costs.append(superarm_cost)
+
+    candidate_rewards = np.asarray(candidate_rewards, dtype=float)
+    candidate_costs = np.asarray(candidate_costs, dtype=float)
+    # Same LP as the course `compute_clairvoyant` (08_constrained_problems):
+    # equality constraint sum_a x(a) = 1 over the simplex Delta(A), the budget
+    # rate as the only inequality, and an explicit opt-out arm (candidate 0,
+    # reward 0 cost 0) so the clairvoyant can leave budget unspent.
+    lp_result = linprog(
+        c=-candidate_rewards,
+        A_ub=[candidate_costs],
+        b_ub=[rho],
+        A_eq=[np.ones_like(candidate_costs)],
+        b_eq=[1.0],
+        bounds=(0.0, 1.0),
+        method="highs",
+    )
+    if not lp_result.success:
+        raise RuntimeError(f"Benchmark LP did not converge: {lp_result.message}")
+
+    return float(-lp_result.fun)
+
+
+def build_expected_reward_table(
+    campaign_values: List[float],
+    bid_values: List[float],
+    mean_competing_bids: List[float],
+    std_competing_bids: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Per-(campaign, bid) expected reward table E_r = (value - b) * P(win | b).
+
+    P(win | b) is the truncated-Gaussian marginal CDF on [0, 1]. The environment
+    instead draws competing bids from a Gaussian *clipped* to [0, 1]. The two
+    models differ only by the probability mass outside [0, 1], which is small
+    for the configured means and std. The same P(win) model is shared with the
+    benchmark, so OPT^S and mu(S_t) are computed consistently, as required by
+    the pseudo-regret definition.
+    """
+    bid_grid = np.array(bid_values, dtype=float)
+    number_of_campaigns = len(campaign_values)
+    reward_table = np.zeros((number_of_campaigns, len(bid_grid)))
+    for i in range(number_of_campaigns):
+        mu = float(mean_competing_bids[i])
+        sigma = float(std_competing_bids)
+        lower = (0.0 - mu) / sigma
+        upper = (1.0 - mu) / sigma
+        win_probability = truncnorm.cdf(bid_grid, lower, upper, loc=mu, scale=sigma)
+        reward_table[i] = (float(campaign_values[i]) - bid_grid) * win_probability
+    return bid_grid, reward_table
+
+
+def expected_action_reward(
+    action: Dict[str, Any],
+    bid_grid: np.ndarray,
+    reward_table: np.ndarray,
+) -> float:
+    """Expected reward mu(S_t) of the super-arm chosen at round t under the true
+    model. The empty super-arm (after budget depletion) has expected reward 0,
+    correctly contributing its full benchmark gap to the regret.
+    """
+    total = 0.0
+    for campaign, bid in zip(action["active_campaigns"], action["bids"]):
+        idx = int(np.argmin(np.abs(bid_grid - float(bid))))
+        total += float(reward_table[campaign, idx])
+    return total
+
+
+def run_single_seed(
+    config: Dict[str, Any],
+    seed: int,
+    benchmark_reward_per_round: float,
+) -> Tuple[List[Dict[str, Any]], Path, int]:
+    """Run one seed end-to-end and return its rows, the per-seed CSV path, and total wins."""
+    experiment_config = config["experiment"]
+    campaigns_config = config["campaigns"]
+    bids_config = config["bids"]
+    conflict_graph_config = config["conflict_graph"]
+    environment_config = config["environment"]
+    outputs_config = config["outputs"]
+
+    horizon = int(experiment_config["horizon"])
+    number_of_campaigns = int(campaigns_config["number_of_campaigns"])
+    campaign_values = [float(v) for v in campaigns_config["values"]]
+    initial_budget = float(campaigns_config["initial_budget"])
+    bid_values = [float(b) for b in bids_config["values"]]
+    conflict_edges = [list(e) for e in conflict_graph_config["edges"]]
+    mean_competing_bids = [float(m) for m in environment_config["mean_competing_bids"]]
+    std_competing_bids = float(environment_config["std_competing_bids"])
+    correlation_on_edge = float(environment_config["correlation_on_edge"])
+
+    # Expected-reward table used to score the pseudo-regret with EXPECTED (not
+    # realized) rewards.
+    bid_grid, reward_table = build_expected_reward_table(
+        campaign_values=campaign_values,
+        bid_values=bid_values,
+        mean_competing_bids=mean_competing_bids,
+        std_competing_bids=std_competing_bids,
+    )
+
+    env = MultiCampaignEnvironment(
+        number_of_campaigns=number_of_campaigns,
+        campaign_values=campaign_values,
+        bid_values=bid_values,
+        budget=initial_budget,
+        horizon=horizon,
+        conflict_edges=conflict_edges,
+        mean_competing_bids=mean_competing_bids,
+        std_competing_bids=std_competing_bids,
+        correlation_on_edge=correlation_on_edge,
+        random_seed=seed,
+    )
+    reset_info = env.reset()
+    info = reset_info["info"]
+
+    # Exploration coefficient c in the CUCB bonus w = c * sqrt(2 * log(t) / N).
+    # c = 0.5 shrinks the textbook bonus so the learner converges to the best
+    # feasible super-arm within T = 1000 (sublinear regret) instead of exploring
+    # for the whole horizon with 55 arms.
+    agent = CombinatorialUCB(
+        number_of_campaigns=int(info["number_of_campaigns"]),
+        campaign_values=list(info["campaign_values"]),
+        bid_values=list(info["bid_values"]),
+        budget=initial_budget,
+        horizon=int(info["horizon"]),
+        conflict_edges=conflict_edges,
+        random_seed=seed,
+        exploration_coefficient=0.5,
+    )
+
+    rows: List[Dict[str, Any]] = []
+    cumulative_regret = 0.0
+    total_wins = 0
+    done = bool(reset_info["done"])
+
+    while not done:
+        action = agent.select_action()
+        step_result = env.step(action)
+        agent.update(action, step_result)
+
+        reward = float(step_result["reward"])
+        cost = float(step_result["cost"])
+        # Pseudo-regret uses the expected reward of the chosen super-arm (not the
+        # realized one): instant_regret = OPT^S - mu(S_t) >= 0, so the cumulative
+        # pseudo-regret is non-negative and monotone non-decreasing.
+        expected_reward = expected_action_reward(action, bid_grid, reward_table)
+        instant_regret = float(benchmark_reward_per_round) - expected_reward
+        cumulative_regret += instant_regret
+        # Track wins locally for the summary; not exported in the CSV.
+        total_wins += int(sum(step_result["wins"]))
+
+        rows.append(
+            {
+                "algorithm": "combinatorial_ucb",
+                "round": step_result["round"],
+                "action": str(action["active_campaigns"]),
+                "bids": str(step_result["bids"]),
+                "wins": str(step_result["wins"]),
+                "reward": reward,
+                "cost": cost,
+                "budget_left": step_result["budget_left"],
+                "cumulative_reward": agent.cumulative_reward,
+                "cumulative_cost": agent.cumulative_cost,
+                "benchmark_reward": float(benchmark_reward_per_round),
+                "instant_regret": instant_regret,
+                "cumulative_regret": cumulative_regret,
+                "seed": int(seed),
+                "done": step_result["done"],
+            }
+        )
+
+        done = bool(step_result["done"])
+
+    per_seed_filename = f"req2_combinatorial_ucb_seed{seed}.csv"
+    output_path = RAW_DIR / per_seed_filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    save_results(rows, str(output_path))
+
+    return rows, output_path, total_wins
+
+
+def plot_with_uncertainty_band(
+    combined: pd.DataFrame,
+    metric: str,
+    horizon: int,
+    output_path: Path,
+    ylabel: str,
+    title: str,
+) -> None:
+    """Plot mean +/- std across seeds with an uncertainty band. 
+    Seeds that terminate early (done=True before T due to budget depletion) are
+    forward-filled with their last observed value up to the horizon so that
+    every series has the same length when aggregated by round.
+    """
+    pivot = combined.pivot(index="round", columns="seed", values=metric)
+    full_index = pd.RangeIndex(1, horizon + 1, name="round")
+    pivot = pivot.reindex(full_index).ffill()
+
+    mean = pivot.mean(axis=1)
+    std = pivot.std(axis=1)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.figure(figsize=(10, 6))
+    plt.plot(full_index, mean, label="combinatorial_ucb")
+    plt.fill_between(full_index, mean - std, mean + std, alpha=0.2)
+    plt.xlabel("Round")
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=200)
+    plt.close()
+    print(f"Saved plot to {output_path}")
+
+
+def print_summary(
+    per_seed_stats: List[Dict[str, Any]],
+    horizon: int,
+) -> None:
+    """Print per-seed termination and final stats plus cross-seed mean/std."""
+    print("\nPer-seed summary:")
+    print(f"{'seed':>5} {'done_round':>11} {'cum_reward':>12} {'cum_cost':>10} {'wins':>6}")
+    for row in per_seed_stats:
+        print(
+            f"{row['seed']:>5} "
+            f"{row['done_round']:>11} "
+            f"{row['cum_reward']:>12.4f} "
+            f"{row['cum_cost']:>10.4f} "
+            f"{row['wins']:>6}"
+        )
+
+    rewards = np.array([r["cum_reward"] for r in per_seed_stats])
+    costs = np.array([r["cum_cost"] for r in per_seed_stats])
+    wins = np.array([r["wins"] for r in per_seed_stats])
+    done_rounds = np.array([r["done_round"] for r in per_seed_stats])
+
+    print("\nCross-seed aggregates (mean +/- std over {} seeds, horizon {}):".format(
+        len(per_seed_stats), horizon
+    ))
+    print(f"  done_round       : {done_rounds.mean():.2f} +/- {done_rounds.std():.2f}")
+    print(f"  cumulative_reward: {rewards.mean():.4f} +/- {rewards.std():.4f}")
+    print(f"  cumulative_cost  : {costs.mean():.4f} +/- {costs.std():.4f}")
+    print(f"  total_wins       : {wins.mean():.2f} +/- {wins.std():.2f}")
+
+
+# ---------------------------------------------------------------------------
+# Optional sensitivity study of the exploration coefficient c.
+# Run with:  python experiments/run_req2.py --figures
+# This does NOT change the standard run or the CSV output above. It only adds
+# one extra PNG (req2_c_comparison.png) that justifies the choice c = 0.5 in
+# the CUCB exploration bonus w = c * sqrt(2 log t / N): it re-runs the learner
+# with c in {0.25, 0.5, 1.0} and compares the cumulative pseudo-regret.
+# ---------------------------------------------------------------------------
+
+C_SWEEP_VALUES: List[float] = [0.25, 0.5, 1.0]
+C_SWEEP_CHOSEN: float = 0.5
+C_SWEEP_SEEDS: List[int] = list(range(10))
+
+
+def _figure_params(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Pull the parameters needed by the extra figures out of the config."""
+    return {
+        "horizon": int(config["experiment"]["horizon"]),
+        "number_of_campaigns": int(config["campaigns"]["number_of_campaigns"]),
+        "campaign_values": [float(v) for v in config["campaigns"]["values"]],
+        "initial_budget": float(config["campaigns"]["initial_budget"]),
+        "bid_values": [float(b) for b in config["bids"]["values"]],
+        "conflict_edges": [list(e) for e in config["conflict_graph"]["edges"]],
+        "mean_competing_bids": [
+            float(m) for m in config["environment"]["mean_competing_bids"]
+        ],
+        "std_competing_bids": float(config["environment"]["std_competing_bids"]),
+        "correlation_on_edge": float(config["environment"]["correlation_on_edge"]),
+    }
+
+
+def _c_sweep_regret_curve(
+    params: Dict[str, Any], benchmark: float, c: float, seed: int
+) -> Tuple[np.ndarray, float]:
+    """Run one seed with exploration coefficient c; return its per-round
+    cumulative pseudo-regret curve and the final remaining budget."""
+    bid_grid, reward_table = build_expected_reward_table(
+        campaign_values=params["campaign_values"],
+        bid_values=params["bid_values"],
+        mean_competing_bids=params["mean_competing_bids"],
+        std_competing_bids=params["std_competing_bids"],
+    )
+    env = MultiCampaignEnvironment(
+        number_of_campaigns=params["number_of_campaigns"],
+        campaign_values=params["campaign_values"],
+        bid_values=params["bid_values"],
+        budget=params["initial_budget"],
+        horizon=params["horizon"],
+        conflict_edges=params["conflict_edges"],
+        mean_competing_bids=params["mean_competing_bids"],
+        std_competing_bids=params["std_competing_bids"],
+        correlation_on_edge=params["correlation_on_edge"],
+        random_seed=seed,
+    )
+    reset_info = env.reset()
+    agent = CombinatorialUCB(
+        number_of_campaigns=params["number_of_campaigns"],
+        campaign_values=params["campaign_values"],
+        bid_values=params["bid_values"],
+        budget=params["initial_budget"],
+        horizon=params["horizon"],
+        conflict_edges=params["conflict_edges"],
+        random_seed=seed,
+        exploration_coefficient=c,
+    )
+
+    cumulative_regret = 0.0
+    curve: List[float] = []
+    done = bool(reset_info["done"])
+    while not done:
+        action = agent.select_action()
+        step_result = env.step(action)
+        agent.update(action, step_result)
+        cumulative_regret += float(benchmark) - expected_action_reward(
+            action, bid_grid, reward_table
+        )
+        curve.append(cumulative_regret)
+        done = bool(step_result["done"])
+
+    horizon = params["horizon"]
+    curve_array = np.array(curve, dtype=float)
+    if curve_array.size < horizon:  # forward-fill if a seed ever stops early
+        curve_array = np.concatenate(
+            [curve_array, np.full(horizon - curve_array.size, curve_array[-1])]
+        )
+    return curve_array, float(env.budget_left)
+
+
+def plot_c_comparison(config: Dict[str, Any]) -> None:
+    """Compare cumulative pseudo-regret for several exploration coefficients c."""
+    params = _figure_params(config)
+    horizon = params["horizon"]
+    benchmark = compute_req2_benchmark(
+        campaign_values=params["campaign_values"],
+        bid_values=params["bid_values"],
+        initial_budget=params["initial_budget"],
+        horizon=horizon,
+        conflict_edges=params["conflict_edges"],
+        mean_competing_bids=params["mean_competing_bids"],
+        std_competing_bids=params["std_competing_bids"],
+        correlation_on_edge=params["correlation_on_edge"],
+    )
+    rounds = np.arange(1, horizon + 1)
+
+    plt.figure(figsize=(10, 6))
+    summary_lines = [f"final R_T  /  budget left (of {params['initial_budget']:.0f})"]
+    for c in C_SWEEP_VALUES:
+        curves = np.zeros((len(C_SWEEP_SEEDS), horizon))
+        budgets_left: List[float] = []
+        for row, seed in enumerate(C_SWEEP_SEEDS):
+            curve, budget_left = _c_sweep_regret_curve(params, benchmark, c, seed)
+            curves[row] = curve
+            budgets_left.append(budget_left)
+        mean = curves.mean(axis=0)
+        std = curves.std(axis=0)
+        label = f"c = {c}" + ("  (chosen)" if c == C_SWEEP_CHOSEN else "")
+        line = plt.plot(rounds, mean, label=label, linewidth=2)[0]
+        plt.fill_between(rounds, mean - std, mean + std, alpha=0.2, color=line.get_color())
+        summary_lines.append(
+            f"c={c}: {mean[-1]:6.1f} +/- {std[-1]:4.1f}  /  {np.mean(budgets_left):5.1f}"
+        )
+
+    plt.title(r"Req2 - Exploration coefficient $c$ in $w = c\sqrt{2\log t / N}$"
+              f"  (mean +/- std, {len(C_SWEEP_SEEDS)} seeds)")
+    plt.xlabel("Round t")
+    plt.ylabel(r"Cumulative pseudo-regret $R_t$")
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc="upper left")
+    plt.gca().text(
+        0.98, 0.02, "\n".join(summary_lines), transform=plt.gca().transAxes,
+        ha="right", va="bottom", family="monospace", fontsize=9,
+        bbox=dict(boxstyle="round", facecolor="whitesmoke", alpha=0.9),
+    )
+    plt.tight_layout()
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = PLOTS_DIR / "req2_c_comparison.png"
+    plt.savefig(output_path, dpi=200)
+    plt.close()
+    print(f"Saved plot to {output_path}")
+
+
+def main(generate_figures: bool = False) -> None:
+    config = load_req2_config()
+
+    experiment_config = config["experiment"]
+    campaigns_config = config["campaigns"]
+    bids_config = config["bids"]
+    conflict_graph_config = config["conflict_graph"]
+    environment_config = config["environment"]
+    outputs_config = config["outputs"]
+
+    horizon = int(experiment_config["horizon"])
+    seeds = [int(s) for s in experiment_config["seeds"]]
+    campaign_values = [float(v) for v in campaigns_config["values"]]
+    initial_budget = float(campaigns_config["initial_budget"])
+    bid_values = [float(b) for b in bids_config["values"]]
+    conflict_edges = [list(e) for e in conflict_graph_config["edges"]]
+    mean_competing_bids = [float(m) for m in environment_config["mean_competing_bids"]]
+    std_competing_bids = float(environment_config["std_competing_bids"])
+    correlation_on_edge = float(environment_config["correlation_on_edge"])
+
+    benchmark = compute_req2_benchmark(
+        campaign_values=campaign_values,
+        bid_values=bid_values,
+        initial_budget=initial_budget,
+        horizon=horizon,
+        conflict_edges=conflict_edges,
+        mean_competing_bids=mean_competing_bids,
+        std_competing_bids=std_competing_bids,
+        correlation_on_edge=correlation_on_edge,
+    )
+
+    all_rows: List[Dict[str, Any]] = []
+    per_seed_stats: List[Dict[str, Any]] = []
+
+    for seed in seeds:
+        rows, per_seed_path, total_wins = run_single_seed(
+            config=config,
+            seed=seed,
+            benchmark_reward_per_round=benchmark,
+        )
+        all_rows.extend(rows)
+
+        # done_round = first round where done=True, otherwise the horizon.
+        done_round = horizon
+        for row in rows:
+            if row["done"]:
+                done_round = int(row["round"])
+                break
+
+        final_row = rows[-1] if rows else None
+        cum_reward = float(final_row["cumulative_reward"]) if final_row else 0.0
+        cum_cost = float(final_row["cumulative_cost"]) if final_row else 0.0
+
+        per_seed_stats.append(
+            {
+                "seed": seed,
+                "done_round": done_round,
+                "cum_reward": cum_reward,
+                "cum_cost": cum_cost,
+                "wins": total_wins,
+            }
+        )
+        print(f"Seed {seed}: done at round {done_round}, "
+              f"cum_reward={cum_reward:.4f}, cum_cost={cum_cost:.4f}, wins={total_wins} "
+              f"-> {per_seed_path.name}")
+
+    combined_path = Path(outputs_config["combinatorial_ucb_results_file"])
+    if not combined_path.is_absolute():
+        combined_path = PROJECT_ROOT / combined_path
+    combined_path.parent.mkdir(parents=True, exist_ok=True)
+    save_results(all_rows, str(combined_path))
+    print(f"\nSaved combined {len(all_rows)} rows to {combined_path}")
+
+    # Follow the Req 1 convention: regenerate the plots from the saved CSV file
+    # (via the shared loader) rather than from the in-memory rows.
+    combined_df = load_result_csvs([combined_path])
+
+    plot_with_uncertainty_band(
+        combined=combined_df,
+        metric="cumulative_reward",
+        horizon=horizon,
+        output_path=PLOTS_DIR / "req2_cumulative_reward.png",
+        ylabel="Cumulative reward",
+        title="Requirement 2 - Cumulative reward",
+    )
+    plot_with_uncertainty_band(
+        combined=combined_df,
+        metric="cumulative_regret",
+        horizon=horizon,
+        output_path=PLOTS_DIR / "req2_cumulative_regret.png",
+        ylabel="Cumulative regret",
+        title="Requirement 2 - Cumulative regret",
+    )
+    plot_with_uncertainty_band(
+        combined=combined_df,
+        metric="budget_left",
+        horizon=horizon,
+        output_path=PLOTS_DIR / "req2_budget_left.png",
+        ylabel="Budget left",
+        title="Requirement 2 - Budget left",
+    )
+    plot_with_uncertainty_band(
+        combined=combined_df,
+        metric="cumulative_cost",
+        horizon=horizon,
+        output_path=PLOTS_DIR / "req2_cumulative_cost.png",
+        ylabel="Cumulative cost",
+        title="Requirement 2 - Cumulative cost",
+    )
+
+    print_summary(per_seed_stats, horizon=horizon)
+    print("\nReq 2 experiments completed.")
+
+    if generate_figures:
+        plot_c_comparison(config)
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Requirement 2 experiments.")
+    parser.add_argument(
+        "--figures",
+        action="store_true",
+        help="also generate the exploration-coefficient sensitivity figure "
+             "(req2_c_comparison.png), which justifies the choice c = 0.5.",
+    )
+    args = parser.parse_args()
+    main(generate_figures=args.figures)

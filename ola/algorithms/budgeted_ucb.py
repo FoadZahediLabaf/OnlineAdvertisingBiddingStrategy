@@ -15,7 +15,7 @@ Do not:
     - Change result/output formats here.
 """
 
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 import numpy as np
 
 
@@ -23,9 +23,10 @@ import numpy as np
 class BudgetedUCB:
     """LP-based budget-aware UCB learner for Requirement 1.
 
-    In Requirement 1, each action is one possible bid. The learner estimates
-    both reward and cost for each bid, builds reward UCBs and cost LCBs, solves
-    the optimistic budgeted LP over bid distributions, and samples one bid from
+    In Requirement 1, each action is one possible bid. The learner first tries
+    each affordable bid once, then estimates both reward and cost for each bid,
+    builds reward UCBs using the current round t, uses empirical costs for
+    practical budget pacing, solves the budgeted LP, and samples one bid from
     the resulting distribution.
     """
 
@@ -33,7 +34,8 @@ class BudgetedUCB:
             self,
             actions: Sequence[float],
             horizon: int,
-            initial_budget: float,) -> None:
+            initial_budget: float,
+            random_seed: Optional[int] = None,) -> None:
 
         if len(actions)==0:
             raise ValueError("Must have at least one action.")  
@@ -50,28 +52,33 @@ class BudgetedUCB:
         self.total_rewards = np.zeros(self.n_actions, dtype=float)
         self.total_costs = np.zeros(self.n_actions, dtype=float)
         self.t = 0
-        self.rng = np.random.default_rng(0)
+        self.random_seed = random_seed
+        self.rng = np.random.default_rng(random_seed)
 
     def select_action(self) -> Any:
         """Select one bid by solving the optimistic budgeted LP and sampling."""
-        if self.budget_left <= 0:
+        if self.budget_left <= 0.0:
             return 0.0
 
         remaining_rounds = max(1, self.horizon - self.t)
         budget_per_remaining_round = self.budget_left / remaining_rounds
 
+        for index, bid in enumerate(self.actions):
+            if self.counts[index] == 0 and bid <= self.budget_left:
+                return float(bid)
+
         empirical_rewards = self.total_rewards / np.maximum(1, self.counts)
         empirical_costs = self.total_costs / np.maximum(1, self.counts)
+        current_round = self.t + 1
         confidence_widths = np.sqrt(
-            2 * np.log(self.horizon) / np.maximum(1, self.counts)
+            2.0 * np.log(current_round) / np.maximum(1, self.counts)
         )
 
         reward_ucbs = empirical_rewards + confidence_widths
-        cost_lcbs = np.maximum(0.0, empirical_costs - confidence_widths)
 
         distribution = self._solve_optimistic_budgeted_lp(
             reward_ucbs=reward_ucbs,
-            cost_lcbs=cost_lcbs,
+            cost_estimates=empirical_costs,
             budget_per_remaining_round=budget_per_remaining_round,
         )
 
@@ -84,14 +91,14 @@ class BudgetedUCB:
     def _solve_optimistic_budgeted_lp(
         self,
         reward_ucbs: np.ndarray,
-        cost_lcbs: np.ndarray,
+        cost_estimates: np.ndarray,
         budget_per_remaining_round: float,
     ) -> np.ndarray:
         """Solve the optimistic LP over bid distributions for Req 1.
 
         The LP is:
             maximize    sum_b gamma_b reward_ucb(b)
-            subject to  sum_b gamma_b cost_lcb(b) <= budget_per_remaining_round
+            subject to  sum_b gamma_b empirical_cost(b) <= budget_per_remaining_round
                         sum_b gamma_b = 1
                         gamma_b >= 0
 
@@ -116,7 +123,7 @@ class BudgetedUCB:
                 best_distribution = best_distribution + candidate_distribution
 
         for index in affordable_indices:
-            cost = float(cost_lcbs[index])
+            cost = float(cost_estimates[index])
             if cost <= budget_per_remaining_round:
                 objective = float(reward_ucbs[index])
                 candidate_distribution = np.zeros(self.n_actions, dtype=float)
@@ -125,8 +132,8 @@ class BudgetedUCB:
 
         for left_position, left_index in enumerate(affordable_indices):
             for right_index in affordable_indices[left_position + 1:]:
-                cost_left = float(cost_lcbs[left_index])
-                cost_right = float(cost_lcbs[right_index])
+                cost_left = float(cost_estimates[left_index])
+                cost_right = float(cost_estimates[right_index])
 
                 if cost_left == cost_right:
                     continue

@@ -33,7 +33,7 @@ class UCB1:
         self.n_actions = len(self.actions)
         self.counts = np.zeros(self.n_actions, dtype=int)
         self.total_rewards = np.zeros(self.n_actions, dtype=float)
-        self.t = 0
+     
 
 
     def select_action(self) -> Any:
@@ -41,12 +41,15 @@ class UCB1:
         for index in range(self.n_actions):
             if self.counts[index] == 0:
                 return float(self.actions[index])
+
+        t = int(np.sum(self.counts)) + 1  # current round t, not fixed horizon T
         empirical_means = self.total_rewards / self.counts
-        confidence_widths = np.sqrt(2 * np.log(self.horizon) / self.counts)
+        confidence_widths = np.sqrt(2.0 * np.log(t) / self.counts)
         upper_confidence_values = empirical_means + confidence_widths
         best_index = int(np.argmax(upper_confidence_values))
-        return float(self.actions[best_index])     
-        
+        return float(self.actions[best_index])  
+
+
     def update(self, action: Any, reward: float) -> None:
         """Update the learner after observing the reward of selected action."""
         action_value = float(action)
@@ -57,4 +60,3 @@ class UCB1:
         index = int(matching_indices[0])
         self.counts[index] += 1
         self.total_rewards[index] += float(reward)
-        self.t += 1
