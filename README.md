@@ -8,7 +8,7 @@
 | Simone Mauro | simone.mauro@mail.polimi.it |
 | Alessandro Sartori | alessandro2.sartori@mail.polimi.it |
 | Luigi Cavuto | luigi.cavuto@mail.polimi.it |
-| Mengyao Li | Mengyao.Li@mail.polimi.it |
+| Mengyao Li | Mengyao1.Li@mail.polimi.it |
 
 ---
 
