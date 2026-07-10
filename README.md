@@ -81,6 +81,7 @@ The repository must stay clean and organized.
     ├── README.md
     ├── CONTRIBUTING.md
     ├── requirements.txt
+    ├── pytest.ini
     ├── .gitignore
     ├── ola/
     │   ├── environments/
@@ -91,6 +92,7 @@ The repository must stay clean and organized.
     │   ├── algorithms/
     │   │   ├── ucb1.py
     │   │   ├── budgeted_ucb.py
+    │   │   ├── ucb_variants.py
     │   │   ├── combinatorial_ucb.py
     │   │   ├── primal_dual.py
     │   │   ├── sw_cucb.py
@@ -98,23 +100,58 @@ The repository must stay clean and organized.
     │   └── utils/
     │       ├── bidding.py
     │       ├── logging.py
-    │       └── graph.py
+    │       ├── plotting.py
+    │       ├── oracle.py
+    │       ├── seeding.py
+    │       ├── graph.py
+    │       └── constellation/
+    │           ├── constellation.py
+    │           ├── synthetic_dataset.py
+    │           └── utils.py
     ├── experiments/
     │   ├── run_req1.py
     │   ├── run_req2.py
     │   ├── run_req3_on_shared_realizations.py
+    │   ├── piecewise_static_oracle.py
     │   ├── generate_req4_shared_realizations.py
     │   ├── export_shared_matrix_tables.py
-    │   └── run_req4.py
+    │   ├── run_req4.py
+    │   ├── run_req4_cd.py
+    │   ├── run_req4_cd_on_shared_realizations.py
+    │   └── run_req4_sw_on_shared_realizations.py
     ├── configs/
     │   ├── req1.yaml
     │   ├── req2.yaml
+    │   ├── req3.yaml
     │   └── req4.yaml
-    └── notebooks/
-        ├── req1_single_campaign.ipynb
-        ├── req2_multi_campaign.ipynb
-        ├── req3_primal_dual.ipynb
-        └── req4_non_stationary.ipynb
+    ├── notebooks/
+    │   ├── req1_single_campaign.ipynb
+    │   ├── req3_primal_dual.ipynb
+    │   └── req4_non_stationary.ipynb
+    ├── tests/
+    │   ├── test_ucb1.py
+    │   ├── test_budget.py
+    │   ├── test_environments.py
+    │   ├── test_req2.py
+    │   ├── test_conflict_graph.py
+    │   ├── test_constellation.py
+    │   └── test_oracle.py
+    ├── results/
+    │   ├── raw/
+    │   ├── processed/
+    │   ├── plots/
+    │   └── exports/
+    └── slides/
+        ├── Final Presentation.pptx
+        ├── notes.md
+        ├── figures/
+        └── RequirementsInDeatails/
+            ├── Gaussian_Constellation (environment).pptx
+            ├── Req1_singleCampaign.pptx
+            ├── Req2_Combinatorial_UCB.pptx
+            ├── Req3_PrimalDual_current.pptx
+            ├── Req4_ComparisonPlots_HiddenPPTX.pptx
+            └── Req4_NonStationary.pptx
 
 ---
 
@@ -527,7 +564,7 @@ Use the file names below unless the group agrees on a different name.
 |---|---|
 | Foad | Project co-lead, repository integration, Requirement 1, code reviewer for the other requirements, and final 3-way comparison: `README.md`, `CONTRIBUTING.md`, `notebooks/req1_single_campaign.ipynb`, `requirements.txt`, `.gitignore`, `ola/__init__.py`, `ola/environments/__init__.py`, `ola/environments/base.py`, `ola/environments/single_campaign.py`, `ola/algorithms/__init__.py`, `ola/algorithms/ucb1.py`, `ola/algorithms/budgeted_ucb.py`, `ola/algorithms/ucb_variants.py`, `experiments/run_req1.py`, `configs/req1.yaml`, `pytest.ini`, `tests/test_ucb1.py`, `tests/test_budget.py`, `tests/test_environments.py`. Foad can review Luigi's, Mengyao's, and Alessandro's code, give consultation, and make code changes only when needed and with the relevant owner's approval. |
 | Simone | Project lead, theory, coordination, master slides, and Requirement 4 theory support: `slides/notes.md`, `slides/figures/*`, final presentation material, shared report material, and theory notes for Requirement 4. Simone can also edit Req 3 and Req 4 code when helping Mengyao and Alessandro |
-| Luigi | Requirement 2 only: `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `experiments/run_req2.py`, `configs/req2.yaml`, `notebooks/req2_multi_campaign.ipynb` |
+| Luigi | Requirement 2 only: `ola/environments/multi_campaign.py`, `ola/algorithms/combinatorial_ucb.py`, `experiments/run_req2.py`, `configs/req2.yaml` |
 | Mengyao | Requirement 3 only: `ola/algorithms/primal_dual.py`, `experiments/run_req3_on_shared_realizations.py`, `experiments/piecewise_static_oracle.py`, `experiments/generate_req4_shared_realizations.py`, `notebooks/req3_primal_dual.ipynb`, and Req3 result/slide artifacts |
 | Alessandro | Requirement 4 code only: `ola/environments/non_stationary.py`, `ola/algorithms/sw_cucb.py`, `ola/algorithms/cd_cucb.py`, `experiments/run_req4.py`, `configs/req4.yaml`, `notebooks/req4_non_stationary.ipynb` |
 | Team | Final review, dry runs, Q&A preparation, and shared discussion of results. Do not edit code files unless the file owner agrees. |
