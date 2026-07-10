@@ -84,19 +84,19 @@ class UCB1Tuned:
 
 
 class ExpectedRewardScaledUCB:
-    """UCB1 with a manually rescaled exploration constant (our team's proposal).
+    """UCB1 with a manually rescaled exploration constant.
 
     Standard UCB1 selection rule, but the inner constant of the confidence
     bound is rescaled from the canonical 2 down to:
 
         inner_constant = 2 * (max_expected_reward / reference_scale) ** 2
 
-    which for max_expected_reward=0.25 and reference_scale=1.0 gives
-    inner_constant = 2 * 0.25**2 = 0.125, matching the derivation on the
-    whiteboard. `max_expected_reward` is NOT hardcoded here -- pass in
+    which for this project's environment (Uniform(0.1, 0.7) competing bid,
+    max_expected_reward=1/3, reference_scale=1.0) gives
+    inner_constant = 2 * (1/3)**2 = 0.2222. `max_expected_reward` is NOT hardcoded here -- pass in
     whatever max(expected_reward(b) for b in bids) actually is for the
-    environment you're running (it's 0.25 under Uniform(0,1); it will be a
-    different number under Uniform(0.1, 0.7) or any other config, so it has
+    environment you're running (it's 1/3 under this project's Uniform(0.1, 0.7) config;
+    it will be a different number under Uniform(0, 1) or any other config, so it has
     to be recomputed per environment rather than reused).
 
     See the module docstring for the caveat on why this doesn't carry
@@ -282,7 +282,7 @@ class BudgetedUCB1Tuned:
 
 
 class BudgetedExpectedRewardScaledUCB:
-    """Teammate's rescaled constant + BudgetedUCB's LP pacing."""
+    """Rescaled-constant exploration bonus + BudgetedUCB's LP pacing."""
 
     def __init__(
         self,
