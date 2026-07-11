@@ -65,11 +65,13 @@ Implement and test:
 
 ### Requirement 4: Slightly Non-Stationary Environment
 
-Implement and compare:
+Implement:
 
 - Combinatorial-UCB with sliding window
 - Combinatorial-UCB with change detector
-- Primal-dual method
+
+Compare:
+- Sliding window, change detector and primal-dual algorithms
 
 ---
 
