@@ -65,7 +65,7 @@ Implement and test:
 
 ### Requirement 4: Slightly Non-Stationary Environment
 
-Implement:
+Implement and test:
 
 - Combinatorial-UCB with sliding window
 - Combinatorial-UCB with change detector
