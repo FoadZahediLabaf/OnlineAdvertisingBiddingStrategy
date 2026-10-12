@@ -1,3 +1,90 @@
+# Online Advertising Bidding Strategy
+
+A Python simulation framework for learning how to bid in repeated advertising auctions under limited budgets, campaign conflicts, and changing market conditions.
+
+**Python · NumPy · SciPy · Pandas · Online Learning · Multi-armed Bandits · pytest**
+
+An Online Learning Applications team project at **Politecnico di Milano**.
+
+## The engineering problem
+
+An advertiser must decide how much to bid without knowing future competing bids. Winning an auction earns value and consumes budget. The framework compares strategies that balance exploration, reward, spending, and adaptation to market changes.
+
+## My contribution — Foad Zahedi Labaf
+
+- Project co-lead and repository integration.
+- Requirement 1: single-campaign simulation, UCB1, budget-aware UCB, and exploration variants.
+- Experiment configuration, reproducible result generation, and validation for Requirement 1.
+- Code review and technical consultation across the project, and participation in the final algorithm comparison.
+
+The multi-campaign, primal-dual, and non-stationary components were developed collaboratively by the team; the contribution and ownership table is retained in the team reference below.
+
+## Algorithms and evaluation
+
+| Scenario | Methods |
+|---|---|
+| Single campaign | UCB1, budget-aware UCB, UCB1-Tuned, and rescaled exploration variants |
+| Multiple campaigns | Combinatorial UCB with budget and campaign-conflict constraints |
+| Budget-constrained non-stationary markets | Factorized primal-dual bidding |
+| Adaptation to changing markets | Sliding-window and change-detector Combinatorial UCB |
+
+Experiments record reward, cost, remaining budget, and regret/benchmark fields where implemented. Saved CSVs and plots make the comparisons inspectable without rerunning the full experiment suite.
+
+### Example: reward and spending over time
+
+![Single-campaign cumulative reward comparison](results/plots/req1_cumulative_reward.png)
+
+![Single-campaign remaining budget comparison](results/plots/req1_budget_left.png)
+
+These figures are saved simulation outputs, not results from a deployed advertising campaign. Interpretation depends on the algorithm's budget assumptions and the benchmark used; the experiment code documents those choices.
+
+## Quick start
+
+Run from the repository root in a Python virtual environment:
+
+```bash
+git clone https://github.com/FoadZahediLabaf/OnlineAdvertisingBiddingStrategy.git
+cd OnlineAdvertisingBiddingStrategy
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python experiments/run_req1.py
+```
+
+On Windows, activate the environment with `.venv\Scripts\Activate.ps1` in PowerShell.
+
+The single-campaign runner reads [configs/req1.yaml](configs/req1.yaml), writes CSV results under `results/raw/`, and generates plots under `results/plots/`.
+
+To run the test suite:
+
+```bash
+python -m pytest -q
+```
+
+## Repository map
+
+| Location | Purpose |
+|---|---|
+| [ola/algorithms](ola/algorithms) | Learning and bidding strategies |
+| [ola/environments](ola/environments) | Auction and market simulators |
+| [experiments](experiments) | Experiment runners and benchmark calculations |
+| [configs](configs) | Reproducible experiment settings |
+| [tests](tests) | Algorithm, environment, and budget validation |
+| [results/plots](results/plots) | Saved comparison figures |
+| [notebooks](notebooks) | Interactive experiment analysis |
+| [Final presentation](slides/Final%20Presentation.pptx) | Team presentation |
+
+For a compact code walkthrough, start with [UCB1](ola/algorithms/ucb1.py), [budget-aware UCB](ola/algorithms/budgeted_ucb.py), the [single-campaign runner](experiments/run_req1.py), and [budget tests](tests/test_budget.py).
+
+## Team
+
+Foad Zahedi Labaf, Simone Mauro, Alessandro Sartori, Luigi Cavuto, and Mengyao Li.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the collaboration workflow. The original team reference is preserved below, including output formats and ownership rules.
+
+<details>
+<summary>Team reference: requirements, result formats, and collaboration rules</summary>
+
 # OLA Project
 
 ## Group Members
@@ -232,11 +319,11 @@ This avoids problems caused by different Python versions or missing libraries.
 
 Use this command to download the repository:
 
-    git clone <repository-url>
+    git clone https://github.com/FoadZahediLabaf/OnlineAdvertisingBiddingStrategy.git
 
 Then enter the project folder:
 
-    cd <repository-folder>
+    cd OnlineAdvertisingBiddingStrategy
 
 Replace `<repository-url>` with the actual GitHub repository link.
 
@@ -604,7 +691,7 @@ These files affect everyone. Do not edit them without telling the group first:
 Add project links here when available.
 
     GitHub repository:
-    https://github.com/FoadZahediLabaf/ola-project
+    https://github.com/FoadZahediLabaf/OnlineAdvertisingBiddingStrategy
 
     Master slides:
     <slides-link>
@@ -631,3 +718,6 @@ Before saying your part is finished:
 - [ ] The plots can be regenerated from saved data.
 - [ ] The code is pushed to GitHub.
 - [ ] The group understands what changed.
+
+
+</details>
